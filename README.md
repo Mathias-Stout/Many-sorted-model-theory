@@ -1,7 +1,7 @@
 # About
 
 The first goal of this repository is to formalize a framework for many-sorted logic in Lean4.
-We aim to extend the current one-sorted definitions and theorems currently in [Mathlib](https://leanprover-community.github.io/mathlib4_docs/Mathlib/ModelTheory/Basic.html), with the aim of developing a stable base for formalizing more advanced results, with model theory of valued fields in particular.
+We aim to extend the current one-sorted definitions and theorems currently in [Mathlib](https://leanprover-community.github.io/mathlib4_docs/Mathlib/ModelTheory/Basic.html), with the aim of developing a stable base for formalizing more advanced results, with the model theory of valued fields as a particular goal.
 
 ## Feedback welcome!
 
