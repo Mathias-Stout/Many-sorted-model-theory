@@ -50,7 +50,7 @@ For the Flypitch project:
 -/
 
 
-universe u v w u' v'
+universe u v w u' v' z
 
 namespace MSFirstOrder
 
@@ -358,7 +358,7 @@ theorem realize_sup : (φ ⊔ ψ).Realize v xs ↔ φ.Realize v xs ∨ ψ.Realiz
   tauto
 
 @[simp]
-theorem realize_foldr_sup (l : List (L.BoundedFormula α σ )) (v : famMap α M) (xs : SortedTuple σ M) :
+theorem realize_foldr_sup {σ} (l : List (L.BoundedFormula α σ )) (v : famMap α M) (xs : SortedTuple σ M) :
     (l.foldr (· ⊔ ·) ⊥).Realize v xs ↔ ∃ φ ∈ l, BoundedFormula.Realize φ v xs := by
   induction l with
   | nil => simp

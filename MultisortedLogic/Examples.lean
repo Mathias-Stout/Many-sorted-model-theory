@@ -17,6 +17,8 @@ namespace MSLanguage
 
 open MSLanguage
 
+universe u
+
 inductive ModuleSorts where
   | RSort
   | MSort

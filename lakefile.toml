@@ -1,7 +1,7 @@
 name = "many-sorted-model-theory"
 version = "0.1.0"
 keywords = ["math"]
-defaultTargets = ["ManySortedModelTheory"]
+defaultTargets = ["MultisortedLogic"]
 
 [leanOptions]
 pp.unicode.fun = true # pretty-prints `fun a ↦ b`
@@ -15,4 +15,4 @@ name = "mathlib"
 scope = "leanprover-community"
 
 [[lean_lib]]
-name = "ManySortedModelTheory"
+name = "MultisortedLogic"

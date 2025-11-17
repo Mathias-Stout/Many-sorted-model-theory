@@ -33,7 +33,7 @@ different datatype or formalism might be preferred after further testing.
 - various helper theorems on appending, casting over equality of the parametrizing list `σ`, and mapping over SortedTuples
 -/
 
-universe u v w
+universe u v w z
 
 variable {S : Type u}
 

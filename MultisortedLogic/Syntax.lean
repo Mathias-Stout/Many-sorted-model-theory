@@ -186,7 +186,7 @@ def restrictVar
   [DecidableEq Sorts]
   [∀ t, DecidableEq (α t)]
   : ∀ {t : Sorts} (f : L.Term α t)
-      (_ : ∀ {s}, {x : (Σ t, α t) // x ∈ (varFinset f : Set _) ∧ x.fst = s} → β s),
+      (_ : ∀ {s}, {x : (Σ t, α t) // x ∈ varFinset f ∧ x.fst = s} → β s),
       L.Term β t
 | _, var t a, g =>
     let x : {x : Σ t, α t // x ∈ (varFinset (var t a))∧ x.fst = t} :=
@@ -199,7 +199,7 @@ def restrictVar
         (fun {s} ⟨x, h⟩=>
           (@g s ⟨ x, by
           -- TODO: remove non-terminal simp statement
-            simp only [varFinset, List.get_eq_getElem, coe_biUnion, coe_univ, Set.mem_univ,Set.iUnion_true, Set.mem_iUnion, mem_coe]
+            simp only [varFinset, List.get_eq_getElem, mem_biUnion, mem_univ, true_and]
             constructor
             ·use i, h.1
             ·exact h.2

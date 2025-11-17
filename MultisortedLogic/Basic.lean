@@ -745,12 +745,12 @@ theorem symm_apply_apply {t} (f : M ≃[L] N) (a : M t) : f.symm t (f t a) = a :
   exact f.left_inv' t a
 
 @[simp]
-theorem map_fun (φ : M ≃[L] N) {σ : List Sorts} (f : L.Functions σ t) (x : SortedTuple σ M) :
+theorem map_fun {t : Sorts} (φ : M ≃[L] N) {σ : List Sorts} (f : L.Functions σ t) (x : SortedTuple σ M) :
     φ t (funMap f x) = funMap f (φ <$>ₛ x) :=
   HomClass.map_fun φ f x
 
 @[simp]
-theorem map_constants (φ : M ≃[L] N) (c : L.Constants t) : φ t c = c :=
+theorem map_constants {t : Sorts} (φ : M ≃[L] N)(c : L.Constants t) : φ t c = c :=
   HomClass.map_constants φ c
 
 @[simp]
