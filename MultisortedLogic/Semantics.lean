@@ -57,8 +57,9 @@ namespace MSFirstOrder
 namespace MSLanguage
 
 variable {Sorts : Type z} {L : MSLanguage.{u, v, z} Sorts} {L' : MSLanguage Sorts}
-variable {M : Sorts → Type w} {N P : Sorts →  Type*} [L.MSStructure M] [L.MSStructure N] [L.MSStructure P]
-variable {α : Sorts →  Type u'} {β : Sorts →  Type v'} {γ : Sorts → Type*}
+variable {M : Sorts → Type w} {N P : Sorts → Type*}
+[L.MSStructure M] [L.MSStructure N] [L.MSStructure P]
+variable {α : Sorts → Type u'} {β : Sorts → Type v'} {γ : Sorts → Type*}
 variable {s : Sorts} {t : Sorts}
 
 open MSFirstOrder Cardinal
@@ -69,7 +70,7 @@ section aux
 
 variable {S : Type*} {α : S → Type*} {β : S → Type*} {σ : List S} {l : List (Sigma α)}
 
-/-- Dependent analogue of Sum.Elim-/
+/-- Dependent analogue of Sum.Elim -/
 def Fam.Sum_inl : α →ₛ α ⊕ₛ β := fun _s a => Sum.inl a
 
 def Fam.Sum_inr : β →ₛ α ⊕ₛ β := fun _s b => Sum.inr b
@@ -78,13 +79,13 @@ def Fam.sumElim {γ : S → Type*} (f : α →ₛ γ) (g : β →ₛ γ) : (α �
   fun s => Sum.elim (f s) (g s)
 
 @[simp]
-theorem Fam.sumElim_inl {γ : S → Type*} (f : α →ₛ γ)  (g : β →ₛ γ) :
+theorem Fam.sumElim_inl {γ : S → Type*} (f : α →ₛ γ) (g : β →ₛ γ) :
     (fun s => Fam.sumElim f g s ∘ Sum.inl) = f := by
   funext s x
   rfl
 
 @[simp]
-theorem Fam.sumElim_inr {γ : S → Type*} (f : α →ₛ γ)  (g : β →ₛ γ) :
+theorem Fam.sumElim_inr {γ : S → Type*} (f : α →ₛ γ) (g : β →ₛ γ) :
     (fun s => Fam.sumElim f g s ∘ Sum.inr) = g := by
   funext s x
   rfl
@@ -104,7 +105,7 @@ def realize {t : Sorts} (v : α →ₛ M) : L.Term α t →  M t
   | var t k => v t k
   | func _ t f ts => funMap f (fun i => (ts i).realize v)
 
-/-- Realize as a dependent map over sorts-/
+/-- Realize as a dependent map over sorts -/
 def realize_as_fMap (v : α →ₛ M) : L.Term α →ₛ M :=
   fun _t => realize v
 
@@ -129,7 +130,8 @@ theorem realize_relabel {t : L.Term α s} {g : α →ₛ β} {v : β →ₛ M} :
 
 /-
 @[simp]
-theorem realize_liftAt {σ ξ η : List Sorts} {t : L.Term (α ⊕ₛ σ.toFam) s} {v : (α ⊕ₛ (σ ++ ξ).toFam ) →ₛ M} :
+theorem realize_liftAt {σ ξ η : List Sorts}
+  {t : L.Term (α ⊕ₛ σ.toFam) s} {v : (α ⊕ₛ (σ ++ ξ).toFam ) →ₛ M} :
     (t.liftAt ξ η).realize v =
       t.realize ( fun s => (v s) ∘ Sum.map id fun i : Fin (σ s) =>
         if ↑i < (η s) then Fin.castAdd (ξ s) i else Fin.addNat i (ξ s)) :=
@@ -148,12 +150,13 @@ theorem realize_functions_apply₁ {f : L.Functions [s] t} {g : L.Term α s} {v 
   exact fromMap_map_fun_singleton g (fun t => realize v (t := t))
 
 @[simp]
-theorem realize_functions_apply₂ {s s₁ s₂ : Sorts} {f : L.Functions [s₁,s₂] s} {t₁ : L.Term α s₁}
+theorem realize_functions_apply₂ {s s₁ s₂ : Sorts} {f : L.Functions [s₁, s₂] s} {t₁ : L.Term α s₁}
     {t₂ : L.Term α s₂} {v : α →ₛ M} :
     (f.apply₂ t₁ t₂).realize v = funMap f !ₛ[⟨s₁, t₁.realize v⟩, ⟨s₂,t₂.realize v⟩] := by
   rw [Functions.apply₂, Term.realize]
   refine congr rfl ?_
-  simp_all only [List.length_cons, List.length_nil, Nat.reduceAdd, List.get_eq_getElem, List.map_cons, List.map_nil]
+  simp_all only [List.length_cons, List.length_nil, Nat.reduceAdd, List.get_eq_getElem,
+    List.map_cons, List.map_nil]
   rfl
 
 theorem realize_con [DecidableEq Sorts] {A : (s : Sorts) → Set (M s)} {s : Sorts} {a : A s}
@@ -283,7 +286,8 @@ def Realize : ∀ {ξ} (_f : L.BoundedFormula α ξ) (_v : α →ₛ M) (_xs : S
   | _, imp f₁ f₂, v, xs => Realize f₁ v xs → Realize f₂ v xs
   | _, @all _ _ _ σ s f, v, xs => ∀ x : M s, Realize f v (xs.extend x)
 
-variable {r : Sorts} {ξ : List Sorts} {φ ψ : L.BoundedFormula α ξ} {θ : L.BoundedFormula α (ξ ++ [r])}
+variable {r : Sorts} {ξ : List Sorts}
+  {φ ψ : L.BoundedFormula α ξ} {θ : L.BoundedFormula α (ξ ++ [r])}
 variable {v : famMap α M} {xs : SortedTuple ξ M}
 
 @[simp]
@@ -307,7 +311,8 @@ theorem realize_inf : (φ ⊓ ψ).Realize v xs ↔ φ.Realize v xs ∧ ψ.Realiz
   simp [Realize]
 
 @[simp]
-theorem realize_foldr_inf {σ} (l : List (L.BoundedFormula α σ)) (v : famMap α M) (xs : SortedTuple σ M) :
+theorem realize_foldr_inf {σ}
+  (l : List (L.BoundedFormula α σ)) (v : famMap α M) (xs : SortedTuple σ M) :
     (l.foldr (· ⊓ ·) ⊤).Realize v xs ↔ ∀ φ ∈ l, BoundedFormula.Realize φ v xs := by
   induction l with
   | nil => simp
@@ -330,7 +335,8 @@ theorem realize_foldr_imp {η : List Sorts} (l : List (L.BoundedFormula α η))
 
 @[simp]
 theorem realize_rel {η : List Sorts} {R : L.Relations η} {ts : SortedTuple η (L.Term _)} :
-    (R.boundedFormula ts).Realize v xs ↔ RelMap R (fromMap fun i => (ts.toMap i).realize (Fam.sumElim v xs)) :=
+    (R.boundedFormula ts).Realize v xs ↔ RelMap R (fromMap fun i =>
+      (ts.toMap i).realize (Fam.sumElim v xs)) :=
   Iff.rfl
 
 
@@ -344,7 +350,7 @@ theorem realize_rel₁ {s : Sorts} {R : L.Relations [s]} {t : L.Term _ _} :
 
 
 @[simp]
-theorem realize_rel₂ {s₁ s₂ : Sorts} {R : L.Relations [s₁,s₂]}
+theorem realize_rel₂ {s₁ s₂ : Sorts} {R : L.Relations [s₁, s₂]}
     {t₁ : L.Term _ s₁} {t₂ : L.Term _ s₂} :
     (R.boundedFormula₂ t₁ t₂).Realize v xs ↔
     RelMap R !ₛ[⟨s₁, t₁.realize (Fam.sumElim v xs)⟩, ⟨s₂, t₂.realize (Fam.sumElim v xs)⟩] := by
@@ -358,7 +364,8 @@ theorem realize_sup : (φ ⊔ ψ).Realize v xs ↔ φ.Realize v xs ∨ ψ.Realiz
   tauto
 
 @[simp]
-theorem realize_foldr_sup {σ} (l : List (L.BoundedFormula α σ )) (v : famMap α M) (xs : SortedTuple σ M) :
+theorem realize_foldr_sup {σ}
+  (l : List (L.BoundedFormula α σ)) (v : famMap α M) (xs : SortedTuple σ M) :
     (l.foldr (· ⊔ ·) ⊥).Realize v xs ↔ ∃ φ ∈ l, BoundedFormula.Realize φ v xs := by
   induction l with
   | nil => simp
@@ -382,7 +389,8 @@ theorem realize_iff : (φ.iff ψ).Realize v xs ↔ (φ.Realize v xs ↔ ψ.Reali
 /-
 theorem realize_castLE_of_eq {ξ σ : List Sorts} (h : ξ = σ) {h' : ξ ≤ σ} {φ : L.BoundedFormula α ξ}
     --note: annoying bit of coercion happens here to go from ξ = σ to ∀ s, ξ s = σ s
-    {v : famMap α M} {xs : sorted_tuple σ M} : (φ.castLE h').Realize v xs ↔ φ.Realize v (fun s => (xs s) ∘ Fin.cast (congr_fun (congr_arg DFunLike.coe h) s)) := by
+    {v : famMap α M} {xs : sorted_tuple σ M} : (φ.castLE h').Realize v xs
+      ↔ φ.Realize v (fun s => (xs s) ∘ Fin.cast (congr_fun (congr_arg DFunLike.coe h) s)) := by
   subst h
   simp only [castLE_rfl, cast_refl, Function.comp_id]
 
@@ -392,7 +400,9 @@ theorem realize_mapTermRel_id [L'.MSStructure M]
     {v' : famMap β M} {xs : sorted_tuple σ M}
     (h1 :
       ∀ (σ) (s) (t : L.Term (addSigVars α σ) s) (xs : sorted_tuple σ M),
-        (ft σ s t).realize (fun s => Sum.elim (v' s) (xs s) ) = t.realize (fun s => Sum.elim (v s) (xs s))) --todo: a bit suspicious of this line. May have to add lambdas
+        (ft σ s t).realize (fun s => Sum.elim (v' s) (xs s) )
+          = t.realize (fun s => Sum.elim (v s) (xs s)))
+    --todo: a bit suspicious of this line. May have to add lambdas
     (h2 : ∀ (σ) (R : L.Relations σ) (x : sorted_tuple σ M), RelMap (fr σ R) x = RelMap R x) :
     (φ.mapTermRel ft fr).Realize v' xs ↔ φ.Realize v xs := by
   induction φ with
@@ -423,13 +433,15 @@ theorem realize_mapTermRel_add_castLe [L'.MSStructure M] {k : ℕ}
   | all _ ih => simp [mapTermRel, Realize, ih, hv]
 
 @[simp]
-theorem realize_relabel {m n : ℕ} {φ : L.BoundedFormula α n} {g : famMap α β ⊕ (Fin m)} {v : famMap β M}
+theorem realize_relabel {m n}
+  {φ : L.BoundedFormula α n} {g : famMap α β ⊕ (Fin m)} {v : famMap β M}
     {xs : Fin (m + n) → M} :
     (φ.relabel g).Realize v xs ↔
       φ.Realize (Sum.elim v (xs ∘ Fin.castAdd n) ∘ g) (xs ∘ Fin.natAdd m) := by
   apply realize_mapTermRel_add_castLe <;> simp
 
-theorem realize_liftAt {n n' m : ℕ} {φ : L.BoundedFormula α n} {v : famMap α M} {xs : Fin (n + n') → M}
+theorem realize_liftAt {n n' m }
+  {φ : L.BoundedFormula α n} {v : famMap α M} {xs : Fin (n + n') → M}
     (hmn : m + n' ≤ n + 1) :
     (φ.liftAt n' m).Realize v xs ↔
       φ.Realize v (xs ∘ fun i => if ↑i < m then Fin.castAdd n' i else Fin.addNat i n') := by
@@ -451,7 +463,8 @@ theorem realize_liftAt {n n' m : ℕ} {φ : L.BoundedFormula α n} {v : famMap �
       simp only [coe_castSucc, coe_cast]
       split_ifs <;> simp
 
-theorem realize_liftAt_one {n m : ℕ} {φ : L.BoundedFormula α n} {v : famMap α M} {xs : Fin (n + 1) → M}
+theorem realize_liftAt_one {n m}
+  {φ : L.BoundedFormula α n} {v : famMap α M} {xs : Fin (n + 1) → M}
     (hmn : m ≤ n) :
     (φ.liftAt 1 m).Realize v xs ↔
       φ.Realize v (xs ∘ fun i => if ↑i < m then castSucc i else i.succ) := by
@@ -465,7 +478,8 @@ theorem realize_liftAt_one_self {n : ℕ} {φ : L.BoundedFormula α n} {v : famM
   rw [if_pos i.is_lt]
 
 @[simp]
-theorem realize_subst {φ : L.BoundedFormula α n} {tf : α → L.Term β} {v : famMap β M} {xs : sorted_tuple σ M} :
+theorem realize_subst
+  {φ : L.BoundedFormula α n} {tf : α → L.Term β} {v : famMap β M} {xs : sorted_tuple σ M} :
     (φ.subst tf).Realize v xs ↔ φ.Realize (fun a => (tf a).realize v) xs :=
   realize_mapTermRel_id
     (fun n t x => by
@@ -547,15 +561,17 @@ namespace LHom
 open BoundedFormula
 
 @[simp]
-theorem realize_onBoundedFormula [L'.MSStructure M] (φ : L →ᴸ L') [φ.IsExpansionOn M] {σ : List Sorts}
+theorem realize_onBoundedFormula
+  [L'.MSStructure M] (φ : L →ᴸ L') [φ.IsExpansionOn M] {σ : List Sorts}
     (ψ : L.BoundedFormula α σ) {v : famMap α M} {xs : SortedTuple σ M} :
     (φ.onBoundedFormula ψ).Realize v xs ↔ ψ.Realize v xs := by
   induction ψ with
   | falsum => rfl
   | equal => simp only [onBoundedFormula, realize_bdEqual, realize_onTerm]; rfl
   | rel =>
-    simp_all only [onBoundedFormula, List.get_eq_getElem, realize_rel, toMap_fromMap, realize_onTerm,
-      map_onRelation]
+    simp_all only
+      [onBoundedFormula, List.get_eq_getElem, realize_rel,
+        toMap_fromMap, realize_onTerm, map_onRelation]
     rfl
   | imp _ _ ih1 ih2 => simp only [onBoundedFormula, ih1, ih2, realize_imp]
   | all _ ih3 => simp only [onBoundedFormula, ih3, realize_all]
@@ -594,7 +610,8 @@ theorem realize_imp : (φ.imp ψ).Realize v ↔ φ.Realize v → ψ.Realize v :=
 theorem realize_rel {ξ : List Sorts} {R : L.Relations ξ} {ts : SortedTuple ξ (L.Term _)} :
     (R.formula ts).Realize v ↔ RelMap (M := M) R (Term.realize_as_fMap v <$>ₛ ts) := by
   refine BoundedFormula.realize_rel.trans (by
-    simp_all only [List.get_eq_getElem, default_toFMap, toMap_fromMap, Term.realize_relabel, Fam.sumElim_inl]
+    simp_all only [List.get_eq_getElem, default_toFMap, toMap_fromMap,
+      Term.realize_relabel, Fam.sumElim_inl]
     rfl)
 
 @[simp]
@@ -605,7 +622,7 @@ theorem realize_rel₁ {R : L.Relations [s]} {t : L.Term α s} :
   rfl
 
 @[simp]
-theorem realize_rel₂ {s₁ s₂} {R : L.Relations [s₁,s₂]} {t₁ : L.Term α s₁} {t₂ : L.Term α s₂} :
+theorem realize_rel₂ {s₁ s₂} {R : L.Relations [s₁, s₂]} {t₁ : L.Term α s₁} {t₂ : L.Term α s₂} :
     (R.formula₂ t₁ t₂).Realize v ↔ RelMap R !ₛ[⟨s₁,t₁.realize v⟩ ,⟨s₂, t₂.realize v⟩] := by
   rw [Relations.formula₂, realize_rel, iff_eq_eq]
   simp_all only [eq_iff_iff]
@@ -654,7 +671,8 @@ theorem boundedFormula_realize_eq_realize (φ : L.Formula α) (v : α →ₛ M) 
 end Formula
 
 @[simp]
-theorem LHom.realize_onFormula [L'.MSStructure M] (φ : L →ᴸ L') [φ.IsExpansionOn M] (ψ : L.Formula α)
+theorem LHom.realize_onFormula
+    [L'.MSStructure M] (φ : L →ᴸ L') [φ.IsExpansionOn M] (ψ : L.Formula α)
     {v : famMap α M} : (φ.onFormula ψ).Realize v ↔ ψ.Realize v :=
   φ.realize_onBoundedFormula ψ
 
@@ -700,7 +718,8 @@ theorem realize_equivSentence [L[[α]].MSStructure M] [(L.lhomWithConstants α).
 
 theorem realize_equivSentence_symm (φ : L[[α]].Sentence) (v : famMap α M) :
     (equivSentence.symm φ).Realize v ↔
-      @Sentence.Realize _ M (@MSLanguage.withConstantsMSStructure L M _ α (constantsOn.MSStructure v))
+      @Sentence.Realize _ M
+        (@MSLanguage.withConstantsMSStructure L M _ α (constantsOn.MSStructure v))
         φ :=
   letI := constantsOn.MSStructure v
   realize_equivSentence_symm_con M φ
@@ -885,7 +904,8 @@ theorem realize_iExs [Finite γ] {φ : L.Formula (α ⊕ γ)} {v : famMap α M} 
 
 @[simp]
 theorem realize_toFormula (φ : L.BoundedFormula α σ) (v : (α ⊕ₛ σ.toFam) →ₛ M) :
-    φ.toFormula.Realize v ↔ φ.Realize (v ∘ₛ Fam.Sum_inl) (sorted_tupleFromFam (v ∘ₛ Fam.Sum_inr)) := by
+    φ.toFormula.Realize v ↔ φ.Realize (v ∘ₛ Fam.Sum_inl)
+      (sorted_tupleFromFam (v ∘ₛ Fam.Sum_inr)) := by
   induction φ with
   | falsum => rfl
   | equal => simp [BoundedFormula.Realize]
