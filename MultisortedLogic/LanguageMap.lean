@@ -20,7 +20,7 @@ namespace MSLanguage
 
 open MSStructure Cardinal Fam
 
-variable {Sorts : Type z} (L : MSLanguage.{u,v,z} Sorts) (L' : MSLanguage.{u', v',z} Sorts)
+variable {Sorts : Type z} (L : MSLanguage.{u, v, z} Sorts) (L' : MSLanguage.{u', v', z} Sorts)
 variable {M : Sorts → Type w} [L.MSStructure M]
 
 
@@ -164,7 +164,8 @@ protected structure Injective : Prop where
 /-- Pulls an `L`-structure along a language map `ϕ : L →ᴸ L'`, and then expands it
   to an `L'`-structure arbitrarily. -/
 noncomputable def defaultExpansion (ϕ : L →ᴸ L')
-    [∀ (σ t) (f : L'.Functions σ t), Decidable (f ∈ Set.range fun f : L.Functions σ t => onFunction ϕ f)]
+    [∀ (σ t) (f : L'.Functions σ t),
+    Decidable (f ∈ Set.range fun f : L.Functions σ t => onFunction ϕ f)]
     [∀ (σ) (r : L'.Relations σ), Decidable (r ∈ Set.range fun r : L.Relations σ => onRelation ϕ r)]
     (M : Sorts → Type*) [∀ s, Inhabited (M s)] [L.MSStructure M] : L'.MSStructure M where
   funMap {σ t} f xs :=
@@ -178,37 +179,38 @@ noncomputable def defaultExpansion (ϕ : L →ᴸ L')
 all symbols on that structure. -/
 class IsExpansionOn (M : Sorts → Type*) [L.MSStructure M] [L'.MSStructure M] : Prop where
   map_onFunction :
-    ∀ {σ t} (f : L.Functions σ t) (x : SortedTuple σ M), funMap (ϕ.onFunction f) x = funMap f x := by
+    ∀ {σ t} (f : L.Functions σ t) (x : SortedTuple σ M),
+    funMap (ϕ.onFunction f) x = funMap f x := by
       exact fun {n} => isEmptyElim
   map_onRelation :
     ∀ {σ} (R : L.Relations σ) (x : SortedTuple σ M), RelMap (ϕ.onRelation R) x = RelMap R x := by
       exact fun {n} => isEmptyElim
 
 @[simp]
-theorem map_onFunction {M : Sorts → Type*} [L.MSStructure M] [L'.MSStructure M] [ϕ.IsExpansionOn M] {σ} {t}
-    (f : L.Functions σ t) (x : SortedTuple σ M) : funMap (ϕ.onFunction f) x = funMap f x :=
-  IsExpansionOn.map_onFunction f x
+theorem map_onFunction {M : Sorts → Type*} [L.MSStructure M] [L'.MSStructure M]
+    [ϕ.IsExpansionOn M] {σ} {t} (f : L.Functions σ t) (x : SortedTuple σ M) :
+    funMap (ϕ.onFunction f) x = funMap f x := IsExpansionOn.map_onFunction f x
 
 @[simp]
-theorem map_onRelation {M : Sorts → Type*} [L.MSStructure M] [L'.MSStructure M] [ϕ.IsExpansionOn M] {σ}
-    (R : L.Relations σ) (x : SortedTuple σ M) : RelMap (ϕ.onRelation R) x = RelMap R x :=
-  IsExpansionOn.map_onRelation R x
+theorem map_onRelation {M : Sorts → Type*} [L.MSStructure M] [L'.MSStructure M]
+    [ϕ.IsExpansionOn M] {σ} (R : L.Relations σ) (x : SortedTuple σ M) :
+    RelMap (ϕ.onRelation R) x = RelMap R x := IsExpansionOn.map_onRelation R x
 
 instance id_isExpansionOn (M : Sorts → Type*) [L.MSStructure M] : IsExpansionOn (LHom.id L) M :=
   ⟨fun _ _ => rfl, fun _ _ => rfl⟩
 
-instance ofIsEmpty_isExpansionOn (M : Sorts → Type*) [L.MSStructure M] [L'.MSStructure M] [L.IsAlgebraic]
-    [L.IsRelational] : IsExpansionOn (LHom.ofIsEmpty L L') M where
+instance ofIsEmpty_isExpansionOn (M : Sorts → Type*) [L.MSStructure M] [L'.MSStructure M]
+    [L.IsAlgebraic] [L.IsRelational] : IsExpansionOn (LHom.ofIsEmpty L L') M where
 
 
-instance sumElim_isExpansionOn {L'' : MSLanguage Sorts} (ψ : L'' →ᴸ L') (M : Sorts → Type*) [L.MSStructure M]
-    [L'.MSStructure M] [L''.MSStructure M] [ϕ.IsExpansionOn M] [ψ.IsExpansionOn M] :
-    (ϕ.sumElim ψ).IsExpansionOn M :=
+instance sumElim_isExpansionOn {L'' : MSLanguage Sorts} (ψ : L'' →ᴸ L') (M : Sorts → Type*)
+    [L.MSStructure M] [L'.MSStructure M] [L''.MSStructure M]
+    [ϕ.IsExpansionOn M] [ψ.IsExpansionOn M] : (ϕ.sumElim ψ).IsExpansionOn M :=
   ⟨fun f _xs => Sum.casesOn f (by simp) (by simp), fun R _ => Sum.casesOn R (by simp) (by simp)⟩
 
-instance sumMap_isExpansionOn {L₁ L₂ : MSLanguage Sorts} (ψ : L₁ →ᴸ L₂) (M : Sorts → Type*) [L.MSStructure M]
-    [L'.MSStructure M] [L₁.MSStructure M] [L₂.MSStructure M] [ϕ.IsExpansionOn M] [ψ.IsExpansionOn M] :
-    (ϕ.sumMap ψ).IsExpansionOn M :=
+instance sumMap_isExpansionOn {L₁ L₂ : MSLanguage Sorts} (ψ : L₁ →ᴸ L₂) (M : Sorts → Type*)
+    [L.MSStructure M] [L'.MSStructure M] [L₁.MSStructure M] [L₂.MSStructure M]
+    [ϕ.IsExpansionOn M] [ψ.IsExpansionOn M] : (ϕ.sumMap ψ).IsExpansionOn M :=
   ⟨fun f _ => Sum.casesOn f (by simp) (by simp), fun R _ => Sum.casesOn R (by simp) (by simp)⟩
 
 instance sumInl_isExpansionOn (M : Sorts → Type*) [L.MSStructure M] [L'.MSStructure M] :
@@ -220,13 +222,17 @@ instance sumInr_isExpansionOn (M : Sorts → Type*) [L.MSStructure M] [L'.MSStru
   ⟨fun _f _ => rfl, fun _R _ => rfl⟩
 
 @[simp]
-theorem funMap_sumInl [(L.sum L').MSStructure M] [(LHom.sumInl : L →ᴸ L.sum L').IsExpansionOn M] {σ} {t}
-    {f : L.Functions σ t} {x : SortedTuple σ M} : @funMap Sorts (L.sum L') M _ σ t (Sum.inl f) x = funMap f x :=
+theorem funMap_sumInl [(L.sum L').MSStructure M]
+    [(LHom.sumInl : L →ᴸ L.sum L').IsExpansionOn M] {σ} {t}
+    {f : L.Functions σ t} {x : SortedTuple σ M} :
+    @funMap Sorts (L.sum L') M _ σ t (Sum.inl f) x = funMap f x :=
   (LHom.sumInl : L →ᴸ L.sum L').map_onFunction f x
 
 @[simp]
-theorem funMap_sumInr [(L'.sum L).MSStructure M] [(LHom.sumInr : L →ᴸ L'.sum L).IsExpansionOn M] {σ} {t}
-    {f : L.Functions σ t} {x : SortedTuple σ M} : @funMap Sorts (L'.sum L) M _ σ t (Sum.inr f) x = funMap f x :=
+theorem funMap_sumInr [(L'.sum L).MSStructure M]
+    [(LHom.sumInr : L →ᴸ L'.sum L).IsExpansionOn M] {σ} {t}
+    {f : L.Functions σ t} {x : SortedTuple σ M} :
+    @funMap Sorts (L'.sum L) M _ σ t (Sum.inr f) x = funMap f x :=
   (LHom.sumInr : L →ᴸ L'.sum L).map_onFunction f x
 
 theorem sumInl_injective : (LHom.sumInl : L →ᴸ L.sum L').Injective :=
@@ -235,13 +241,14 @@ theorem sumInl_injective : (LHom.sumInl : L →ᴸ L.sum L').Injective :=
 theorem sumInr_injective : (LHom.sumInr : L' →ᴸ L.sum L').Injective :=
   ⟨fun h => Sum.inr_injective h, fun h => Sum.inr_injective h⟩
 
-instance (priority := 100) isExpansionOn_reduct (ϕ : L →ᴸ L') (M : Sorts → Type*) [L'.MSStructure M] :
-    @IsExpansionOn Sorts L L' ϕ M (ϕ.reduct M) _ :=
+instance (priority := 100) isExpansionOn_reduct (ϕ : L →ᴸ L') (M : Sorts → Type*)
+    [L'.MSStructure M] :  @IsExpansionOn Sorts L L' ϕ M (ϕ.reduct M) _ :=
   letI := ϕ.reduct M
   ⟨fun _f _ => rfl, fun _R _ => rfl⟩
 
 theorem Injective.isExpansionOn_default {ϕ : L →ᴸ L'}
-    [∀ (σ t) (f : L'.Functions σ t), Decidable (f ∈ Set.range fun f : L.Functions σ t => ϕ.onFunction f)]
+    [∀ (σ t) (f : L'.Functions σ t),
+    Decidable (f ∈ Set.range fun f : L.Functions σ t => ϕ.onFunction f)]
     [∀ (σ) (r : L'.Relations σ), Decidable (r ∈ Set.range fun r : L.Relations σ => ϕ.onRelation r)]
     (h : ϕ.Injective) (M : Sorts → Type*) [∀ s, Inhabited (M s)] [L.MSStructure M] :
     @IsExpansionOn Sorts L L' ϕ M _ (ϕ.defaultExpansion M) := by
@@ -353,8 +360,9 @@ theorem constantsOnMap_isExpansionOn {f : α →ₛ β} {fα : α →ₛ M} {fβ
   letI := constantsOn.structure fα
   letI := constantsOn.structure fβ
   exact
-    ⟨fun {σ} {t} => List.casesOn σ (fun F _x => (congr_fun (congr_fun h t) F :)) fun t σ F => isEmptyElim F, fun R =>
-      isEmptyElim R⟩
+    ⟨fun {σ} {t} => List.casesOn σ
+    (fun F _x => (congr_fun (congr_fun h t) F :)) fun t σ F => isEmptyElim F,
+    fun R => isEmptyElim R⟩
 
 end ConstantsOn
 
@@ -400,8 +408,8 @@ variable {L} (α)
 def LHom.addConstants {L' : MSLanguage Sorts} (φ : L →ᴸ L') : L[[α]] →ᴸ L'[[α]] :=
   φ.sumMap (LHom.id _)
 
-/-- Structure from constants-/
-instance paramsStructure (A : (s : Sorts) →  Set (α s)) :
+/-- Structure from constants. -/
+instance paramsStructure (A : (s : Sorts) → Set (α s)) :
     -- elaborate A so that lean coerces it to a map Sorts → Type w'
     (constantsOn (fun s => A s : Sorts → Type w')).MSStructure α :=
   -- again, Lean does the coercions for us, at the cost of some elaboration
@@ -423,13 +431,15 @@ variable {α} {β : Sorts → Type*}
 
 @[simp]
 theorem withConstants_funMap_sumInl [L[[α]].MSStructure M] [(lhomWithConstants L α).IsExpansionOn M]
-    {σ} {t} {f : L.Functions σ t} {x : SortedTuple σ M} : @funMap _ (L[[α]]) M _ σ t (Sum.inl f) x = funMap f x :=
+    {σ} {t} {f : L.Functions σ t} {x : SortedTuple σ M} :
+    @funMap _ (L[[α]]) M _ σ t (Sum.inl f) x = funMap f x :=
   (lhomWithConstants L α).map_onFunction f x
 
 
 @[simp]
 theorem withConstants_relMap_sumInl [L[[α]].MSStructure M] [(lhomWithConstants L α).IsExpansionOn M]
-    {σ} {R : L.Relations σ} {x : SortedTuple σ M} : @RelMap _ (L[[α]]) M _ σ (Sum.inl R) x = RelMap R x :=
+    {σ} {R : L.Relations σ} {x : SortedTuple σ M} :
+    @RelMap _ (L[[α]]) M _ σ (Sum.inl R) x = RelMap R x :=
   (lhomWithConstants L α).map_onRelation R x
 
 /-- The language map extending the constant set. -/
@@ -468,8 +478,8 @@ instance addEmptyConstants_symm_isExpansionOn :
     (LEquiv.addEmptyConstants L (fun s => (∅ : Set (M s)))).symm.toLHom.IsExpansionOn M :=
   LHom.sumElim_isExpansionOn _ _ _
 
-instance addConstants_expansion {L' : MSLanguage Sorts} [L'.MSStructure M] (φ : L →ᴸ L') [φ.IsExpansionOn M] :
-    (φ.addConstants α).IsExpansionOn M :=
+instance addConstants_expansion {L' : MSLanguage Sorts} [L'.MSStructure M] (φ : L →ᴸ L')
+    [φ.IsExpansionOn M] : (φ.addConstants α).IsExpansionOn M :=
   LHom.sumMap_isExpansionOn _ _ M
 
 @[simp]
@@ -479,13 +489,13 @@ theorem withConstants_funMap_sumInr {s : Sorts} {a : α s} {x : SortedTuple [] M
   exact (LHom.sumInr : constantsOn α →ᴸ L.sum _).map_onFunction _ _
 
 
-variable {α} (A : (s : Sorts) →  Set (M s))
+variable {α} (A : (s : Sorts) → Set (M s))
 
 @[simp]
 theorem coe_con {s : Sorts} {a : A s} : (L.con (α := fun s => A s) s a : M s) = a :=
   rfl
 
-variable {A} {B : (s : Sorts) →  Set (M s)} (h : ∀ s, A s ⊆ B s)
+variable {A} {B : (s : Sorts) → Set (M s)} (h : ∀ s, A s ⊆ B s)
 
 instance constantsOnMap_inclusion_isExpansionOn :
     (LHom.constantsOnMap (fun s => Set.inclusion (h s))).IsExpansionOn M :=
