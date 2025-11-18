@@ -80,12 +80,14 @@ abbrev smulFunc : rmod.Functions [RSort, MSort] MSort := smul
 instance {α : ModuleSorts → Type*} : Zero (MSLanguage.rmod.Term α RSort) :=
 { zero := Constants.term zeroRFunc}
 
-theorem zeroR_def (α : ModuleSorts → Type*) : (0 : MSLanguage.rmod.Term α RSort) = Constants.term zeroRFunc := rfl
+theorem zeroR_def (α : ModuleSorts → Type*) : (0 : MSLanguage.rmod.Term α RSort)
+  = Constants.term zeroRFunc := rfl
 
 instance (α : ModuleSorts → Type*) : One (MSLanguage.rmod.Term α RSort) :=
 { one := Constants.term oneRFunc}
 
-theorem oneR_def (α : ModuleSorts → Type*) : (1 : MSLanguage.rmod.Term α RSort) = Constants.term oneRFunc := rfl
+theorem oneR_def (α : ModuleSorts → Type*) : (1 : MSLanguage.rmod.Term α RSort)
+  = Constants.term oneRFunc := rfl
 
 instance (α : ModuleSorts → Type*) : Add (MSLanguage.rmod.Term α RSort) :=
 { add := addRFunc.apply₂ }
@@ -110,7 +112,8 @@ theorem negR_def (α : ModuleSorts → Type*) (t : MSLanguage.rmod.Term α RSort
 instance {α : ModuleSorts → Type*} : Zero (MSLanguage.rmod.Term α MSort) :=
 { zero := Constants.term zeroMFunc}
 
-theorem zeroM_def (α : ModuleSorts → Type*) : (0 : MSLanguage.rmod.Term α MSort) = Constants.term zeroMFunc := rfl
+theorem zeroM_def (α : ModuleSorts → Type*) : (0 : MSLanguage.rmod.Term α MSort)
+  = Constants.term zeroMFunc := rfl
 
 instance (α : ModuleSorts → Type*) : Add (MSLanguage.rmod.Term α MSort) :=
 { add := addMFunc.apply₂ }
@@ -125,26 +128,29 @@ theorem negM_def (α : ModuleSorts → Type*) (t : MSLanguage.rmod.Term α MSort
     - t = negMFunc.apply₁ t := rfl
 
 --instance for scalar multiplication
-instance (α : ModuleSorts → Type*) : SMul (MSLanguage.rmod.Term α RSort) (MSLanguage.rmod.Term α MSort) :=
+instance (α : ModuleSorts → Type*) :
+  SMul (MSLanguage.rmod.Term α RSort) (MSLanguage.rmod.Term α MSort) :=
 { smul := smulFunc.apply₂ }
 
-theorem smul_def {α : ModuleSorts → Type*} (t₁ : MSLanguage.rmod.Term α RSort) (t₂ : MSLanguage.rmod.Term α MSort) :
+theorem smul_def {α} (t₁ : MSLanguage.rmod.Term α RSort) (t₂ : MSLanguage.rmod.Term α MSort) :
     t₁ • t₂ = smulFunc.apply₂ t₁ t₂ := rfl
 
-/-- Making this an abbrev instad of a def makes Lean automatically unfold this, which helps with typeclass inference, see below-/
-abbrev RMod (R M: Type u) : ModuleSorts → Type _
+/-- Making this an abbrev instead of a def makes Lean automatically unfold this,
+which helps with typeclass inference, see below -/
+abbrev RMod (R M : Type u) : ModuleSorts → Type _
   | RSort => R
   | MSort => M
 
 --TODO: get rid of SortedTuple.evalᵢⱼ using e.g. metaprogramming
-/-- Analogue of the CompatibleRing typeclass-/
-class CompatibleModule (R M : Type u) [Add R] [Mul R] [Neg R] [One R] [Zero R] [Add M] [Zero M] [Neg M] [SMul R M]
+/-- Analogue of the CompatibleRing typeclass -/
+class CompatibleModule (R M : Type u)
+  [Add R] [Mul R] [Neg R] [One R] [Zero R] [Add M] [Zero M] [Neg M] [SMul R M]
     extends MSLanguage.rmod.MSStructure (RMod R M) where
-  funMap_addR   : ∀ xs, funMap addRFunc xs = xs.eval₂₁ + xs.eval₂₂
-  funMap_mulR   : ∀ xs, funMap mulRFunc xs = xs.eval₂₁ * xs.eval₂₂
-  funMap_negR   : ∀ xs, funMap negRFunc xs = - xs.eval₁
-  funMap_zeroR  : ∀ xs, funMap zeroRFunc xs = 0
-  funMap_oneR   : ∀ xs, funMap oneRFunc xs = 1
+  funMap_addR : ∀ xs, funMap addRFunc xs = xs.eval₂₁ + xs.eval₂₂
+  funMap_mulR : ∀ xs, funMap mulRFunc xs = xs.eval₂₁ * xs.eval₂₂
+  funMap_negR : ∀ xs, funMap negRFunc xs = - xs.eval₁
+  funMap_zeroR : ∀ xs, funMap zeroRFunc xs = 0
+  funMap_oneR : ∀ xs, funMap oneRFunc xs = 1
 
   funMap_addM   : ∀ xs, funMap addMFunc xs = xs.eval₂₁ + xs.eval₂₂
   funMap_negM   : ∀ xs, funMap negMFunc xs = - xs.eval₁
@@ -158,7 +164,8 @@ attribute [simp] funMap_zeroM funMap_negM funMap_addM funMap_smul
 
 section realizing
 
-variable {R M : Type u} [Add R] [Mul R] [Neg R] [One R] [Zero R] [Add M] [Zero M] [Neg M] [SMul R M] [CompatibleModule R M]
+variable {R M : Type u}
+[Add R] [Mul R] [Neg R] [One R] [Zero R] [Add M] [Zero M] [Neg M] [SMul R M] [CompatibleModule R M]
 variable (v : α →ₛ RMod R M)
 
 theorem realize_addR (x y : rmod.Term α RSort) :
@@ -207,7 +214,8 @@ theorem realize_smul (r : rmod.Term α RSort) (m : rmod.Term α MSort) :
 
 end realizing
 
-def compatibleOfModule (R M : Type u) [Add R] [Mul R] [Neg R] [One R] [Zero R] [Add M] [Zero M] [Neg M] [SMul R M] :
+def compatibleOfModule (R M : Type u)
+  [Add R] [Mul R] [Neg R] [One R] [Zero R] [Add M] [Zero M] [Neg M] [SMul R M] :
   CompatibleModule R M :=
   { funMap := fun {l} {s} f =>
       match l, s, f with
@@ -258,7 +266,7 @@ infixl:67 " •' " => smulFunc.apply₂
 infixl:65 " +ₘ " => addMFunc.apply₂
 prefix:75 " -ₘ " => negMFunc.apply₁
 
-abbrev  no_two_torsion : rmod.Sentence :=
+abbrev no_two_torsion : rmod.Sentence :=
   let σ := [MSort]
   have : NeZero σ.length := Nat.instNeZeroSucc
   -- note just using zero on "0" in the right-hand side fails, as Lean does not find the instance
@@ -269,12 +277,15 @@ abbrev  no_two_torsion : rmod.Sentence :=
 example : (RMod ℝ ℝ)  ⊨ no_two_torsion := by
   unfold no_two_torsion
   letI := compatibleOfModule ℝ ℝ
-  simp [Sentence.Realize, Formula.Realize ,SortedTuple.fromList',SortedTuple.eval₂₁, SortedTuple.eval₂₂, SortedTuple.eval₁, SortedTuple.toMap]
+  simp [Sentence.Realize, Formula.Realize ,SortedTuple.fromList',
+    SortedTuple.eval₂₁, SortedTuple.eval₂₂, SortedTuple.eval₁, SortedTuple.toMap]
   have : NeZero [MSort].length := Nat.instNeZeroSucc
   intro x
-  have : Term.realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim) ((default : SortedTuple [] (RMod ℝ ℝ) ).extend x).toFMap) [MSort]&0 = x := rfl
+  have : Term.realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+    ((default : SortedTuple [] (RMod ℝ ℝ) ).extend x).toFMap) [MSort]&0 = x := rfl
   rw [this]
-  have : Term.realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim) ((default : SortedTuple [] (RMod ℝ ℝ)).extend x).toFMap) 0 = (0 : RMod ℝ ℝ MSort) := by aesop
+  have : Term.realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+    ((default : SortedTuple [] (RMod ℝ ℝ)).extend x).toFMap) 0 = (0 : RMod ℝ ℝ MSort) := rfl
   rw [this]
   intro h
   aesop
@@ -291,20 +302,25 @@ def mk_var : (s : ModuleSorts) → ℕ → Term rmod myVarSymbols s :=
   fun s n => var s n
 
 --The new Functions.apply₂ works great here!
-noncomputable def smul_terms {α : ModuleSorts → Type*} : Term rmod α RSort → Term rmod α MSort → Term rmod α MSort :=
+noncomputable def smul_terms {α : ModuleSorts → Type*} :
+  Term rmod α RSort → Term rmod α MSort → Term rmod α MSort :=
   Functions.apply₂ smul
 
-noncomputable def addM_terms {α : ModuleSorts → Type*} : Term rmod α MSort → Term rmod α MSort → Term rmod α MSort :=
+noncomputable def addM_terms {α : ModuleSorts → Type*} :
+  Term rmod α MSort → Term rmod α MSort → Term rmod α MSort :=
   Functions.apply₂ addM
 
 @[simp]
 theorem funMap_smul_eq {r : RC RSort} {m : RC MSort} :
-    MSStructure.funMap smulFunc (!ₛ[⟨RSort, r⟩, ⟨MSort, m⟩] : SortedTuple [RSort,MSort] RC) = r • m := rfl
+    MSStructure.funMap smulFunc (!ₛ[⟨RSort, r⟩, ⟨MSort, m⟩] :
+      SortedTuple [RSort,MSort] RC) = r • m := rfl
 theorem funMap_smul_eq' {r : RR RSort} {m : RR MSort} :
-    MSStructure.funMap smulFunc (!ₛ[⟨RSort, r⟩, ⟨MSort, m⟩] : SortedTuple [RSort,MSort] RR) = r • m := rfl
+    MSStructure.funMap smulFunc (!ₛ[⟨RSort, r⟩, ⟨MSort, m⟩] :
+      SortedTuple [RSort,MSort] RR) = r • m := rfl
 @[simp]
 theorem funMap_addM_eq {m n : RC MSort} :
-    MSStructure.funMap addMFunc (!ₛ[⟨MSort, m⟩, ⟨MSort, n⟩] : SortedTuple [MSort,MSort] RC) = m + n := rfl
+    MSStructure.funMap addMFunc (!ₛ[⟨MSort, m⟩, ⟨MSort, n⟩] :
+      SortedTuple [MSort,MSort] RC) = m + n := rfl
 
 
 def v₀ : rmod.Term myVarSymbols MSort := mk_var MSort 0
@@ -316,7 +332,8 @@ def s₁ : Term rmod myVarSymbols RSort := mk_var RSort 1
 
 noncomputable def sv₀ : Term rmod myVarSymbols MSort := smul_terms s₀ v₀
 
--- simple assignment function, mapping all named variables of the ring sort to 1 and all those of the module sort to 0
+/-- simple assignment function, mapping all named variables of the
+ring sort to 1 and all those of the module sort to 0 -/
 @[simp]
 def my_vals : (myVarSymbols →ₛ RC) := fun s (n : ℕ) =>
   match s with
@@ -331,7 +348,8 @@ example : Term.realize my_vals v₀ = (0 : ℂ) := by
 --with the current assignment scalars s₀, s₁ should be equal
 def φ₀ := s₀.equal s₁
 
--- Either holds or fails after unfolding definitions, depending on the choices for variable assignments
+/-- Either holds or fails after unfolding definitions,
+depending on the choices for variable assignments -/
 example : ¬ φ₀.Realize my_vals := by
   rw[φ₀]
   unfold s₀ s₁ mk_var
@@ -345,7 +363,7 @@ noncomputable example : rmod.BoundedFormula Fam.EmptyFam [RSort,RSort] :=
   σ&0 =' σ&1
 
 -- one dimensional module
-/-- An rmod-sentence saying that the structure as a module has rank at least 1-/
+/-- An rmod-sentence saying that the structure as a module has rank at least 1 -/
 noncomputable def rk_ge_1 : rmod.Sentence :=
   let σ := [MSort,RSort]
   have : NeZero σ.length := Nat.instNeZeroSucc
@@ -354,19 +372,20 @@ noncomputable def rk_ge_1 : rmod.Sentence :=
      ( ((σ&1) ='(Constants.term zeroRFunc))))
 
 -- two-dimensional module
-noncomputable def eq_zero_implies_coeff_zero : rmod.BoundedFormula Fam.EmptyFam [MSort,MSort,RSort,RSort] :=
+noncomputable def eq_zero_implies_coeff_zero :
+  rmod.BoundedFormula Fam.EmptyFam [MSort,MSort,RSort,RSort] :=
   let ξ := [MSort,MSort,RSort,RSort]
   have : NeZero ξ.length := Nat.instNeZeroSucc
   ((((ξ&2) •' (ξ&0)) +ₘ ((ξ&3) •' (ξ&1)))
     =' Constants.term zeroMFunc) ⟹
     ( ∼ ( ((ξ&2) ='(Constants.term zeroRFunc)) ⟹ ∼ (((ξ&3) ='(Constants.term zeroRFunc)))))
 
-/-- An rmod-sentence saying that the structure as a module has rank at least 2-/
+/-- An rmod-sentence saying that the structure as a module has rank at least 2 -/
 noncomputable def rk_ge_2 : rmod.Sentence :=
   ∃' ∃' ∀' ∀' eq_zero_implies_coeff_zero
 
 
-/-- An LRMod-sentence saying that the structure is a rank 1 module-/
+/-- An LRMod-sentence saying that the structure is a rank 1 module -/
 noncomputable def rk_eq_1 : rmod.Sentence :=
   rk_ge_1 ⊓  ∼ rk_ge_2
 
@@ -377,15 +396,16 @@ noncomputable def has_non_zero_MSort : rmod.Sentence :=
 
 open MSStructure
 
-example (h : (0 : ℝ ) = (1: ℝ)) : False := zero_ne_one h
+example (h : (0 : ℝ) = (1 : ℝ)) : False := zero_ne_one h
 
-/--ℝ as a 1-D vector space has a non-zero element in the MSort-/
+/-- ℝ as a 1-D vector space has a non-zero element in the MSort -/
 theorem R_has_non_zero_MSort : RR ⊨ has_non_zero_MSort := by
   unfold has_non_zero_MSort Sentence.Realize Formula.Realize BoundedFormula.Realize
   have : NeZero [MSort].length := Nat.instNeZeroSucc
   simp
   use 1
-  have : realize (L := rmod) (Fam.sumElim (fun s a ↦ Empty.elim a) ((default : SortedTuple [] RR).extend 1).toFMap) ([MSort]&0) = (1: ℝ) := rfl
+  have : realize (L := rmod) (Fam.sumElim (fun s a ↦ Empty.elim a)
+    ((default : SortedTuple [] RR).extend 1).toFMap) ([MSort]&0) = (1: ℝ) := rfl
   intro h
   rw [this] at h
   have : funMap zeroMFunc (default: SortedTuple [] RR)= (0 : ℝ) := by rfl
@@ -399,8 +419,8 @@ noncomputable def dim_1_dif : rmod.Sentence :=
   have : NeZero σ.length := Nat.instNeZeroSucc
   ∃' ∀' ∃'(((σ&2) •' (σ&0))=' (σ&1))
 
-/---1 as a vector spans ℝ as a 1-D module over itself-/
-theorem One_spans_R: RR ⊨ dim_1_dif := by
+/-- 1 as a vector spans ℝ as a 1-D module over itself -/
+theorem One_spans_R : RR ⊨ dim_1_dif := by
   have : NeZero [MSort,MSort,RSort].length := Nat.instNeZeroSucc
   unfold dim_1_dif Sentence.Realize Formula.Realize
   simp
@@ -408,13 +428,16 @@ theorem One_spans_R: RR ⊨ dim_1_dif := by
   intro x
   use (x : RR RSort)
   have coe_eq : RR RSort = RR MSort := rfl
-  have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim) ((((default : SortedTuple [] RR).extend (1 : RR MSort)).extend x).extend (coe_eq ▸ x)).toFMap)
+  have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+    ((((default : SortedTuple [] RR).extend (1 : RR MSort)).extend x).extend (coe_eq ▸ x)).toFMap)
             ([MSort, MSort, RSort]&2) = (x : RR RSort) := rfl
   rw [this]
-  have : realize (L := rmod) (Fam.sumElim (fun s (a:Empty) ↦ a.elim) ((((default: SortedTuple [] RR).extend 1).extend x).extend (coe_eq ▸ x)).toFMap)
+  have : realize (L := rmod) (Fam.sumElim (fun s (a:Empty) ↦ a.elim)
+    ((((default: SortedTuple [] RR).extend 1).extend x).extend (coe_eq ▸ x)).toFMap)
             ([MSort, MSort, RSort]&0)= (1 : RR MSort) := rfl
   rw [this]
-  have : realize (L := rmod) (Fam.sumElim (fun s (a:Empty) ↦ a.elim) ((((default: SortedTuple [] RR).extend 1).extend x).extend (coe_eq ▸ x)).toFMap)
+  have : realize (L := rmod) (Fam.sumElim (fun s (a:Empty) ↦ a.elim)
+    ((((default: SortedTuple [] RR).extend 1).extend x).extend (coe_eq ▸ x)).toFMap)
     ([MSort, MSort, RSort]&1) = x := rfl
   rw [this]
   rw [SortedTuple.eval₂₁,SortedTuple.eval₂₂]
@@ -427,10 +450,12 @@ theorem R_has_dim_ge_1 :  RR ⊨ rk_ge_1 := by
   simp
   use 1
   intro k
-  have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim) (((default : SortedTuple [] RR).extend 1).extend k).toFMap)
+  have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+    (((default : SortedTuple [] RR).extend 1).extend k).toFMap)
               ([MSort, RSort]&1) = k := by rfl
   rw [this]
-  have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim) (((default : SortedTuple [] RR).extend 1).extend k).toFMap)
+  have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+    (((default : SortedTuple [] RR).extend 1).extend k).toFMap)
               ([MSort, RSort]&0) = (1 : ℝ) := rfl
   rw [this]
   rw [eval₂₁,eval₂₂]
@@ -447,11 +472,13 @@ theorem R_has_dim_exact_1 : RR ⊨ rk_eq_1 := by
     simp
     use 1
     intro a
-    have :  realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim) (((default : SortedTuple [] RR).extend 1).extend a).toFMap)
+    have :  realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+      (((default : SortedTuple [] RR).extend 1).extend a).toFMap)
               ([MSort, RSort]&1) = a := rfl
     rw [this]
 
-    have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim) (((default : SortedTuple [] RR).extend 1).extend a).toFMap)
+    have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+      (((default : SortedTuple [] RR).extend 1).extend a).toFMap)
               ([MSort, RSort]&0) = (1: ℝ) := rfl
     rw [this, eval₂₁, eval₂₂]
     simp [fromList', toMap]
@@ -472,20 +499,23 @@ the sentence rk_ge_n (currently we can't really implicitly talk about "n" free v
 -/
 
 -- R-torsion
-/-- An rmod-sentence saying that the structure has R-torsion-/
+/-- An rmod-sentence saying that the structure has R-torsion -/
 noncomputable def has_torsion : rmod.Sentence :=
   let σ := [MSort,RSort]
   let : NeZero σ.length := Nat.instNeZeroSucc
-  let torsion_witness := (∼ (σ&1 =' Constants.term zeroRFunc)) ⊓ (∼ (σ&0 =' Constants.term zeroMFunc)) ⊓ ( ((σ&1) •' (σ&0)) =' Constants.term zeroMFunc)
+  let torsion_witness := (∼ (σ&1 =' Constants.term zeroRFunc))
+    ⊓ (∼ (σ&0 =' Constants.term zeroMFunc)) ⊓ ( ((σ&1) •' (σ&0)) =' Constants.term zeroMFunc)
   ∃' ∃' torsion_witness
 
-/-- An rmod-sentence saying that the R-module is torsion free-/
+/-- An rmod-sentence saying that the R-module is torsion free -/
 noncomputable def torsion_free : rmod.Sentence :=
   ∼ (has_torsion)
 
-/--ℂ as an ℝ-module has no ℝ-torsion-/
+/-- ℂ as an ℝ-module has no ℝ-torsion -/
 theorem C_has_no_torsion : RC ⊨ torsion_free := by
   unfold torsion_free has_torsion
   simp [Sentence.Realize, Formula.Realize]
   intro C_has_torsion
   sorry
+end MSLanguage
+end MSFirstOrder
