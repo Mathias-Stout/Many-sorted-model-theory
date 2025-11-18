@@ -15,22 +15,26 @@ different datatype or formalism might be preferred after further testing.
 
 ## Main Definitions
 
-- Given a type `S`, a map `α : S → Type*` and a list `σ : List S`, a `SortedTuple α σ` is a `List (Sigma α)`
-  with first projection equal to `σ`
+- Given a type `S`, a map `α : S → Type*` and a list `σ : List S`,
+  a `SortedTuple α σ` is a `List (Sigma α)` with first projection equal to `σ`
 - `Sortedtuple.ofList'` converts a `List (Sigma α)` to a SortedTuple, notation `!ₛ[ ... ]`
-- `SortedTuple.toMap` converts a `SortedTuple σ α` to a dependent map `(i : Fin σ.length) → α (σ.get i)`
+- `SortedTuple.toMap` converts a `SortedTuple σ α` to a dependent map
+  `(i : Fin σ.length) → α (σ.get i)`
 - `SortedTuple.toFMap` converts a `SortedTuple σ α` to a map fibered over `S`: an object of type
   `(s : S) → { (i : Fin σ.length) // σ.get i = s } →  α s`
 - `SortedTuple.append` appends two SortedTuples, similar to appending lists
-- `SortedTuple.map` maps a dependent function over a SortedTuple, similar to List.map. Notation `<$>ₛ`
+- `SortedTuple.map` maps a dependent function over a SortedTuple,
+  similar to List.map. Notation `<$>ₛ`
 
 
 ## Main theorems
 
-- Equivalence between sorted tuples and dependent maps in `SortedTuple.toMap_fromMap` and `SortedTuple.fromMap_toMap`
-- Equivalence between sorted tuples and maps fibered over a base `S` in `SortedTuple.toFMap_fromFMap` and
-  `SortedTuple.fromFmap_toFmap`
-- various helper theorems on appending, casting over equality of the parametrizing list `σ`, and mapping over SortedTuples
+- Equivalence between sorted tuples and dependent maps
+  in `SortedTuple.toMap_fromMap` and `SortedTuple.fromMap_toMap`
+- Equivalence between sorted tuples and maps fibered over a base `S`
+  in `SortedTuple.toFMap_fromFMap` and `SortedTuple.fromFmap_toFmap`
+- various helper theorems on appending,
+  casting over equality of the parametrizing list `σ`, and mapping over SortedTuples
 -/
 
 universe u v w z
@@ -50,27 +54,28 @@ variable {l : List (Sigma α)} {xs : SortedTuple σ α}
 
 open List
 
-/-- Extract the signature-/
+/-- Extract the signature from a SortedTuple. -/
 def signature (_xs : SortedTuple σ α) : (List S) := σ
 
 /-- Alias for the constructor -/
 def fromList (l : List (Sigma α)) (h : l.map Sigma.fst = σ) : SortedTuple σ α :=
   SortedTuple.mk l h
 
-/-- Construct a -SortedTuple from just a List of Sigma α-/
+/-- Construct a -SortedTuple from just a List of Sigma α. -/
 def fromList' (l : List (Sigma α)) : SortedTuple (l.map Sigma.fst) α :=
   fromList l rfl
 
 syntax (name := sortedTupleNotation) "!ₛ[" term,* "]" : term
 
-/-- Notation for constructing SortedTuples, similar to the one for constructing non-dependent vectors-/
+/-- Notation for constructing SortedTuples,
+  similar to the one for constructing non-dependent vectors. -/
 macro_rules
   | `(!ₛ[$term:term, $terms:term,*]) => `(fromList' (List.cons $term [$terms,*]))
   | `(!ₛ[$term:term]) => `(fromList' [$term])
   | `(!ₛ[]) => `(fromList' [])
 
 
-/-- Abbreviation for toList.get-/
+/-- Abbreviation for toList.get -/
 abbrev get (xs : SortedTuple σ α) := xs.toList.get
 
 @[simp]
@@ -79,28 +84,30 @@ theorem length_eq (xs : SortedTuple σ α) : xs.toList.length = σ.length := by
   · simp
   · rw[xs.signature_eq]
 
-/-- Get the i-th element of the sorted tuple, casting over the equality from length_eq-/
+/-- Get the i-th element of the sorted tuple, casting over the equality from length_eq. -/
 abbrev getFinCast (xs : SortedTuple σ α) (i : Fin σ.length) :=
   xs.get (Fin.cast xs.length_eq.symm i)
 
-/-- A version of signature_eq specialized individual elements and taking care of resulting casts-/
+/-- A version of signature_eq specialized individual elements and taking care of resulting casts. -/
 theorem proj_get (xs : SortedTuple σ α) :
     ∀ i, (xs.get i).fst = σ.get (Fin.cast xs.length_eq i) := by
   simp [xs.signature_eq.symm]
 
-/-- A version of signature_eq, specialized to individual elements and taking care of resulting casts -/
+/-- A version of signature_eq,
+  specialized to individual elements and taking care of resulting casts. -/
 theorem proj_get' (xs : SortedTuple σ α) :
     ∀ i, (xs.getFinCast i).fst = σ.get i := by
   intro i
   rw [xs.proj_get]
   simp
 
-/--Theorem proj_get lifted to dependent types -/
+/-- Theorem proj_get lifted to dependent types -/
 -- TODO: Replace all uses of this theorem by calls to theorems in the Mathlib, if possible
-theorem proj_type (xs : SortedTuple σ α) : ∀ i, α (xs.get i).fst = α (σ.get (Fin.cast xs.length_eq i)) :=
+theorem proj_type (xs : SortedTuple σ α) :
+    ∀ i, α (xs.get i).fst = α (σ.get (Fin.cast xs.length_eq i)) :=
   fun i => congrArg α (xs.proj_get i)
 
-/-- Theorem proj_get' lifted to dependent types-/
+/-- Theorem proj_get' lifted to dependent types -/
 -- TODO: Replace all uses of this theorem by calls to theorems in the Mathlib, if possible
 theorem proj_type' (xs : SortedTuple σ α) :  ∀ i, α (xs.getFinCast i).fst = α (σ.get i) :=
   fun i => congrArg α (xs.proj_get' i)
@@ -115,19 +122,20 @@ def castTypeInv {xs : SortedTuple σ α} {i : Fin (σ.length)}
   xs.proj_get' i ▸ x
 
 @[simp]
-theorem castType_castTypeInv {xs : SortedTuple σ α} {i : Fin σ.length} : ∀ (x : α (σ.get i)), castType (xs.castTypeInv x) = x := by
+theorem castType_castTypeInv {xs : SortedTuple σ α} {i : Fin σ.length} :
+  ∀ (x : α (σ.get i)), castType (xs.castTypeInv x) = x := by
   intro x
   unfold castType castTypeInv
-  simp [Eq.rec_eq_cast]
+  simp only [get_eq_getElem, Fin.coe_cast, eqRec_eq_cast, cast_cast, cast_eq]
 
 @[simp]
 theorem castTypeInv_castType {xs : SortedTuple σ α} {i : Fin (σ.length)} :
     ∀ (x : α ((xs.getFinCast i)).fst), castTypeInv (xs.castType x) = x := by
   intro x
   unfold castType castTypeInv
-  simp [Eq.rec_eq_cast]
+  simp only [get_eq_getElem, Fin.coe_cast, eqRec_eq_cast, cast_cast, cast_eq]
 
-/-- castType as an equivalence-/
+/-- castType as an equivalence. -/
 def castTypeEquiv {xs : SortedTuple σ α} {i : Fin (σ.length)} :
     α ((xs.getFinCast i)).fst ≃ α (σ.get i) where
   toFun := castType
@@ -135,10 +143,10 @@ def castTypeEquiv {xs : SortedTuple σ α} {i : Fin (σ.length)} :
   left_inv := by apply castTypeInv_castType
   right_inv := by apply castType_castTypeInv
 
-/- Lemma to help simplify types -/
+/- Lemma to help simplify types. -/
 @[simp]
-theorem toList_getElem_fst (xs : SortedTuple σ α) (n : ℕ) {h₁ : n < xs.toList.length} {h₂ : n < σ.length} :
-    xs.toList[n].fst = σ[n] := by
+theorem toList_getElem_fst (xs : SortedTuple σ α) (n : ℕ)
+    {h₁ : n < xs.toList.length} {h₂ : n < σ.length} : xs.toList[n].fst = σ[n] := by
   have h  : σ[n] = σ.get (Fin.mk n h₂) := rfl
   have h' : xs.toList[n] = xs.get (Fin.mk n h₁) := rfl
   rw [h, h']
@@ -152,12 +160,12 @@ theorem toList_fromList (l : List (Sigma α)) (h : l.map Sigma.fst = σ) :
 @[simp]
 theorem fromList_toList : fromList xs.toList xs.signature_eq = xs := rfl
 
-/-- Cast over equality of the list signatures-/
+/-- Cast over equality of the list signatures. -/
 def castL (h : σ = ξ) (xs : SortedTuple σ α) : SortedTuple ξ α :=
   fromList xs.toList (by rw[signature_eq,h])
 
 @[simp]
-theorem castL_eq {h : σ = σ} (xs: SortedTuple σ α) : xs.castL h = xs := by
+theorem castL_eq {h : σ = σ} (xs : SortedTuple σ α) : xs.castL h = xs := by
   rfl
 
 @[simp]
@@ -173,12 +181,12 @@ def fromMap (f : (i : Fin σ.length) → α (σ.get i)) : SortedTuple σ α :=
     List.ofFn_getElem])
 
 /-- Construct a sorted tuple from a dependent map with domain Fin n and a proof that n = σ.length -/
-def fromMap' {n : ℕ} (h : n = σ.length) (f : (i : Fin n) → α (σ.get (Fin.cast h i) )) :
+def fromMap' {n : ℕ} (h : n = σ.length) (f : (i : Fin n) → α (σ.get (Fin.cast h i))) :
     SortedTuple σ α :=
-  fromList (List.ofFn (fun i => ⟨σ.get i, f (Fin.cast h.symm i)⟩)) (by rw[List.map_ofFn,Function.comp_def]; simp only [List.get_eq_getElem,
-    List.ofFn_getElem])
+  fromList (List.ofFn (fun i => ⟨σ.get i, f (Fin.cast h.symm i)⟩))
+    (by rw[List.map_ofFn,Function.comp_def]; simp only [List.get_eq_getElem, List.ofFn_getElem])
 
-/-- Helper theorem to flatten applications of toMap and fromMap-/
+/-- Helper theorem to flatten applications of toMap and fromMap. -/
 theorem fromMap_getFinCast_eq_Sigma_mk {f : (i : Fin σ.length) → α (σ.get i)} (i : Fin σ.length) :
     (fromMap f).getFinCast i = Sigma.mk (σ.get i) (f i) := by
   simp_all only [List.get_eq_getElem, Fin.coe_cast]
@@ -189,12 +197,12 @@ theorem fromMap_getFinCast_eq_Sigma_mk {f : (i : Fin σ.length) → α (σ.get i
   · simp_all only [Fin.eta, List.get_eq_getElem]
   · simp_all only [Fin.eta, List.get_eq_getElem, heq_eq_eq]
 
-/--Convert a SortedTuple to a dependent map -/
+/-- Convert a SortedTuple to a dependent map -/
 def toMap (xs : SortedTuple σ α) : (i : Fin (σ.length)) → (α (σ.get i)) :=
   fun i =>  (xs.proj_type' i) ▸ (xs.getFinCast i).snd
 
 @[simp]
-theorem fromMap_toMap {xs: SortedTuple σ α} : fromMap xs.toMap = xs := by
+theorem fromMap_toMap {xs : SortedTuple σ α} : fromMap xs.toMap = xs := by
   unfold toMap fromMap fromList
   apply SortedTuple.ext
   simp only [List.get_eq_getElem, Fin.coe_cast]
@@ -219,7 +227,8 @@ theorem toMap_fromMap {f : (i : Fin σ.length) → α (σ.get i)} : toMap (fromM
   rw [snd_eq ((fromMap f).proj_type' i) (fromMap_getFinCast_eq_Sigma_mk i)]
 
 /-- Equivalence between SortedTuples and dependent maps -/
-def EquivMap {S : Type u} {σ : List S} {α : S → Type v} : SortedTuple σ α ≃ ((i : Fin σ.length) → (α (σ.get i))) where
+def EquivMap {S : Type u} {σ : List S} {α : S → Type v} :
+    SortedTuple σ α ≃ ((i : Fin σ.length) → (α (σ.get i))) where
   toFun := toMap
   invFun := fromMap
   left_inv := by
@@ -232,7 +241,7 @@ def EquivMap {S : Type u} {σ : List S} {α : S → Type v} : SortedTuple σ α 
     apply toMap_fromMap
 
 /-- Get the second component of the i-th element, casting over any relevant equalities -/
-abbrev get_cast{n : ℕ} {s : S} (xs : SortedTuple σ α) (i : Fin n) (hn : n = σ.length)
+abbrev get_cast {n : ℕ} {s : S} (xs : SortedTuple σ α) (i : Fin n) (hn : n = σ.length)
     (hσ : σ.get (Fin.cast hn i) = s) : α s :=
   hσ ▸ xs.toMap (Fin.cast hn i)
 
@@ -240,10 +249,10 @@ end asMap
 
 section asFMap
 
-/-- Turn a sorted tuple into a fibered map-/
+/-- Turn a sorted tuple into a fibered map. -/
 def toFMap (xs : SortedTuple σ α) : σ.toFam →ₛ α := fun _ ⟨i,h⟩ => xs.get_cast i rfl h
 
-/-- Build a sorted tuple from a specific kind of fibered map-/
+/-- Build a sorted tuple from a specific kind of fibered map. -/
 def fromFMap (f : σ.toFam →ₛ α) : SortedTuple σ α := fromMap (fun i => f (σ.get i) ⟨i,rfl⟩)
 
 theorem toFMap_eq (xs : SortedTuple σ α) : xs.toFMap = fun _s ⟨i,h⟩ => xs.get_cast i rfl h := rfl
@@ -276,8 +285,8 @@ theorem eq_toMap_eq_iff {xs ys : SortedTuple σ α} : xs = ys ↔ xs.toMap = ys.
 theorem eq_if_toMap_eq {xs ys : SortedTuple σ α} : xs.toMap = ys.toMap → xs = ys :=
   eq_toMap_eq_iff.mpr
 
-theorem eq_if_list_eq {l₁ l₂ : List (Sigma α)} {h₁ : l₁.map Sigma.fst = σ } {h₂ : l₂.map Sigma.fst = σ}
-    (h : l₁ = l₂) : fromList l₁ h₁ = fromList l₂ h₂ := by
+theorem eq_if_list_eq {l₁ l₂ : List (Sigma α)} {h₁ : l₁.map Sigma.fst = σ}
+    {h₂ : l₂.map Sigma.fst = σ} (h : l₁ = l₂) : fromList l₁ h₁ = fromList l₂ h₂ := by
   apply SortedTuple.ext
   simpa
 
@@ -288,7 +297,7 @@ section append
 def append (xs : SortedTuple σ α) (ys : SortedTuple ξ α) : SortedTuple (σ ++ ξ) α :=
   fromList (xs.toList ++ ys.toList) (by rw [List.map_append,signature_eq,signature_eq])
 
-def extend  (xs : SortedTuple σ α) (x : α s) : SortedTuple (σ ++ [s]) α :=
+def extend (xs : SortedTuple σ α) (x : α s) : SortedTuple (σ ++ [s]) α :=
   xs.append (fromList [⟨s, x⟩] rfl)
 
 theorem toList_append (xs : SortedTuple σ α) (ys : SortedTuple ξ α) :
@@ -299,30 +308,34 @@ theorem toList_append (xs : SortedTuple σ α) (ys : SortedTuple ξ α) :
 theorem toList_extend {xs : SortedTuple σ α} :
     (xs.extend x).toList = xs.toList ++ [⟨s,x⟩] := rfl
 
-theorem append_fromList {l m : List (Sigma α)} {hl : l.map (Sigma.fst) = σ} {hm : m.map (Sigma.fst) = ξ} :
+theorem append_fromList {l m : List (Sigma α)}
+    {hl : l.map (Sigma.fst) = σ} {hm : m.map (Sigma.fst) = ξ} :
     (fromList l hl).append (fromList m hm) = fromList (l ++ m) (by rw[List.map_append,hl,hm]) := by
   unfold append
   simp only [toList_fromList]
 
 theorem extend_fromMap {f : (i : Fin σ.length) → α (σ.get i)} :
-    (fromMap f).extend x = fromList ((fromMap f).toList ++ [Sigma.mk s x]) (by simp [(fromMap f).signature_eq]) := rfl
+    (fromMap f).extend x =
+    fromList ((fromMap f).toList ++ [Sigma.mk s x]) (by simp [(fromMap f).signature_eq]) := rfl
 
-/-- Appending is associative, up to casting over equality of lists-/
+/-- Appending is associative, up to casting over equality of lists. -/
 theorem append_assoc (xs : SortedTuple σ α) (ys : SortedTuple ξ α) (zs : SortedTuple η α) :
-    (xs.append ys).append zs = castL (Eq.symm (List.append_assoc σ ξ η)) (xs.append (ys.append zs)) := by
+    (xs.append ys).append zs =
+    castL (Eq.symm (List.append_assoc σ ξ η)) (xs.append (ys.append zs)) := by
   unfold append castL
   simp
 
 end append
 
-/-Applying dependent functions to SortedTuples-/
+/-Applying dependent functions to SortedTuples. -/
 section maps
 
-/-- Map a dependent function over a SortedTuple, similar to List.map-/
+/-- Map a dependent function over a SortedTuple, similar to List.map. -/
 def map (f : α →ₛ β) (xs : SortedTuple σ α) : SortedTuple σ β :=
   fromMap (fun i => f (σ.get i) (xs.toMap i))
 
-/--A sorted tuple is comparable to a "dependent functor", so we borrow this notation for "Functor.map"-/
+/--A sorted tuple is comparable to a "dependent functor",
+  so we borrow this notation for "Functor.map". -/
 infixr:100 " <$>ₛ " => SortedTuple.map
 
 theorem map_eq (f : α →ₛ β) (xs : SortedTuple σ α) :
@@ -367,7 +380,8 @@ theorem map_extend {β : S → Type*} {s : S} {f : α →ₛ β} (x : α s) :
     f <$>ₛ (xs.extend x) = (f <$>ₛ xs).extend (f s x) := by
     sorry
 
-theorem map_append {β : S → Type*} {ξ : List S} (xs : SortedTuple σ α) (ys : SortedTuple ξ α) (f : α →ₛ β) :
+theorem map_append {β : S → Type*} {ξ : List S}
+    (xs : SortedTuple σ α) (ys : SortedTuple ξ α) (f : α →ₛ β) :
     f <$>ₛ (xs.append ys) =  (f <$>ₛ xs).append (f <$>ₛ ys) := by sorry
 
 end maps
@@ -399,7 +413,7 @@ theorem default_toList {S : Type u} {α : S → Type*} :
 theorem map_default {S : Type u} {α β : S → Type*} {f : α →ₛ β} :
   f <$>ₛ (default : SortedTuple [] α) = default := rfl
 
-instance instDecidableEq  [hyp : ∀ i : Fin σ.length, DecidableEq (α (σ.get i))] :
+instance instDecidableEq [hyp : ∀ i : Fin σ.length, DecidableEq (α (σ.get i))] :
   DecidableEq (SortedTuple σ α) := fun xs ys =>
   if h : xs.toMap = ys.toMap then
     .isTrue <| by
@@ -449,7 +463,8 @@ def getLast (xs : SortedTuple (σ ++ [s]) α) : α s :=
   this ▸ p.snd
 
 /- Key lemma to define a snocInduction-/
-def extend_surj {s : S} (xs : SortedTuple (σ ++ [s]) α) : (xs.getPrefix).extend (xs.getLast) = xs := by
+def extend_surj {s : S} (xs : SortedTuple (σ ++ [s]) α) :
+    (xs.getPrefix).extend (xs.getLast) = xs := by
   apply SortedTuple.ext
   unfold getPrefix getLast extend append
   simp only [toList_fromList]
@@ -466,11 +481,12 @@ def extend_surj {s : S} (xs : SortedTuple (σ ++ [s]) α) : (xs.getPrefix).exten
   · simp
 
 
-/-- An analouge of Fin.snocInduction-/
+/-- An analouge of Fin.snocInduction. -/
 @[elab_as_elim]
 def snocInduction {motive : {ξ : List S} → SortedTuple ξ α → Sort*} :
     (base :  (xs : SortedTuple [] α) → motive xs) →
-    (step : (ξ : List S) → (ys : SortedTuple ξ α) → (s : S) →  (x : α s) → (motive ys) → motive (ys.extend x)) →
+    (step : (ξ : List S) → (ys : SortedTuple ξ α) → (s : S) →  (x : α s) →
+      (motive ys) → motive (ys.extend x)) →
     {σ  : List S} → (xs : SortedTuple σ α) → motive xs := by
   intro hb ih σ
   apply List.reverseRecOn (motive := fun (σ : List S) => (xs : SortedTuple σ α) → motive xs) σ hb
@@ -480,14 +496,15 @@ def snocInduction {motive : {ξ : List S} → SortedTuple ξ α → Sort*} :
     exact ih ξ xs.getPrefix s xs.getLast (ih' xs.getPrefix)
     )
 
-/-- Alternative SortedTuple.map using snocInduction-/
+/-- Alternative SortedTuple.map using snocInduction. -/
 def map' {β : S → Type*} (xs : SortedTuple σ α) (f : α →ₛ β) : SortedTuple σ β :=
   snocInduction
     (fun _ => (default : SortedTuple [] β))
     (fun ξ _ s x (ys_mapped : SortedTuple ξ β) => ys_mapped.extend (f s x)) xs
 
 @[simp]
-theorem map'_default {β : S → Type*} (f : α →ₛ β) : (default : SortedTuple [] α).map' f = default := by
+theorem map'_default {β : S → Type*} (f : α →ₛ β) :
+    (default : SortedTuple [] α).map' f = default := by
   rw[Unique.uniq inferInstance ((default : SortedTuple [] α).map' f)]
 
 
@@ -501,27 +518,28 @@ end induction
 
 section experiments
 
---TODO: clean this up
-
-/--Convert a SortedTuple to a dependent map -/
-def get' (xs : SortedTuple σ α) (s : S) (i : Fin σ.length) (h : s = σ.get i): α s :=
+/-- Convert a SortedTuple to a dependent map -/
+def get' (xs : SortedTuple σ α) (s : S) (i : Fin σ.length) (h : s = σ.get i) : α s :=
   h ▸ (xs.proj_type' i) ▸ (xs.getFinCast i).snd
 
 syntax:max term noWs "[" withoutPosition(term) "]ₛ" : term
 macro_rules | `($x[$i]ₛ) => `((SortedTuple.toMap $x (Fin.mk $i (by get_elem_tactic))))
 
---TODO: replace this by metaprogramming
-/-- Evaluate a SortedTuple of length at least one at the first element-/
-def eval₁ {α : S → Type*} {σ : List S} {s : S} (xs : SortedTuple (s :: σ)  α) : α s :=
+--TODO: replace this (by metaprogramming?)
+/-- Evaluate a SortedTuple of length at least one at the first element. -/
+def eval₁ {α : S → Type*} {σ : List S} {s : S} (xs : SortedTuple (s :: σ) α) : α s :=
   xs.toMap (Fin.mk 0 (by simp))
 
-/-- Evaluate a SortedTuple of length at least two at the first element-/
-def eval₂₁ {α : S → Type*} {σ : List S} {s₁ s₂ : S}  (xs : SortedTuple (s₁ :: (s₂ :: σ))  α) : α s₁ :=
+/-- Evaluate a SortedTuple of length at least two at the first element. -/
+def eval₂₁ {α : S → Type*} {σ : List S} {s₁ s₂ : S}
+    (xs : SortedTuple (s₁ :: (s₂ :: σ)) α) : α s₁ :=
   xs.toMap (Fin.mk 0 (by simp))
 
-/-- Evaluate a SortedTuple of length at least two at the second element-/
-def eval₂₂ {α : S → Type*} {σ : List S} {s₁ s₂ : S}  (xs : SortedTuple (s₁ :: (s₂ :: σ))  α) : α s₂ :=
+/-- Evaluate a SortedTuple of length at least two at the second element. -/
+def eval₂₂ {α : S → Type*} {σ : List S} {s₁ s₂ : S}
+    (xs : SortedTuple (s₁ :: (s₂ :: σ)) α) : α s₂ :=
   xs.toMap (Fin.mk 1 (by simp))
 
 
 end experiments
+end SortedTuple

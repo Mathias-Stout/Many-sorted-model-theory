@@ -33,7 +33,7 @@ Relations : List Sorts → Type v
 namespace MSLanguage
 
 variable {Sorts : Type z}
-variable (L : MSLanguage.{u,v,z} Sorts)
+variable (L : MSLanguage.{u, v, z} Sorts)
 
 /-- A language is relational when it has no function symbols. -/
 abbrev IsRelational : Prop := ∀ σ t, IsEmpty (L.Functions σ t)
@@ -44,11 +44,11 @@ abbrev IsAlgebraic : Prop := ∀ σ, IsEmpty (L.Relations σ)
 @[simp] protected def empty : MSLanguage Sorts :=
   ⟨fun _ _ => Empty, fun _ => Empty⟩
 
-lemma Empty_relations_imp_algebraic (L : MSLanguage  Sorts)
+lemma Empty_relations_imp_algebraic (L : MSLanguage Sorts)
   (h : ∀ σ, L.Relations σ = Empty) : IsAlgebraic L :=
   fun σ => by rw [h σ]; infer_instance
 
-lemma Empty_functions_imp_relational (L : MSLanguage  Sorts)
+lemma Empty_functions_imp_relational (L : MSLanguage Sorts)
   (h : ∀ σ t, L.Functions σ t = Empty) : IsRelational L :=
   fun σ t => by rw [h σ t]; infer_instance
 
@@ -61,7 +61,8 @@ instance : @IsAlgebraic.{0,0,z} Sorts MSLanguage.empty :=
 instance : Inhabited (MSLanguage Sorts) :=
   ⟨MSLanguage.empty⟩
 
-/-- The sum of two languages with equal sorts consists of the disjoint union of their symbols over their Sorts.-/
+/-- The sum of two languages with equal sorts consists of the disjoint union of
+  their symbols over their Sorts. -/
 protected def sum (L' : (MSLanguage.{u', v', z} Sorts)) : MSLanguage Sorts :=
   ⟨fun σ => fun t => L.Functions σ t  ⊕ L'.Functions σ t, fun σ => L.Relations σ ⊕ L'.Relations σ⟩
 
@@ -105,10 +106,11 @@ theorem card_eq_card_functions_add_card_relations :
   unfold card Symbols
   simp only [mk_sum, mk_sigma, lift_sum]
   apply card_plus_eq
-  apply congr ; simp
-  funext σ
-  apply lift_helper
-  apply lift_helper
+  · apply congr
+    · simp
+    funext σ
+    apply lift_helper
+  · apply lift_helper
 
 instance isRelational_sum [L.IsRelational] [L'.IsRelational] : IsRelational (L.sum L') :=
   fun _ _ => instIsEmptySum
@@ -121,21 +123,22 @@ instance isEmpty_empty : IsEmpty (@MSLanguage.empty Sorts).Symbols := by
   unfold MSLanguage.empty
   simp
   constructor
-  exact fun _ => inferInstance
-  exact inferInstance
+  · exact fun _ => inferInstance
+  · exact inferInstance
 
 @[simp]
 theorem card_empty : (@MSLanguage.empty Sorts).card = 0 := by
   unfold card
   simp
 
-instance Countable.countable_functions [h : Countable L.Symbols] : Countable (Σ σ t, L.Functions σ t) :=
+instance Countable.countable_functions [h : Countable L.Symbols] :
+    Countable (Σ σ t, L.Functions σ t) :=
   @Function.Injective.countable _ _ h _ Sum.inl_injective
 
 @[simp]
-theorem card_functions_sum (σ : List Sorts) (t : Sorts):
-    #((L.sum L').Functions σ t)
-      = (Cardinal.lift.{u'} #(L.Functions σ t) + Cardinal.lift.{u} #(L'.Functions σ t) : Cardinal) := by
+theorem card_functions_sum (σ : List Sorts) (t : Sorts) :
+    #((L.sum L').Functions σ t) =
+    (Cardinal.lift.{u'} #(L.Functions σ t) + Cardinal.lift.{u} #(L'.Functions σ t) : Cardinal) := by
   simp [MSLanguage.sum]
 
 @[simp]
@@ -147,16 +150,17 @@ theorem card_relations_sum (σ : List Sorts) :
 theorem card_sum {L' : MSLanguage.{u', v', z} Sorts} :
     (L.sum L').card = Cardinal.lift.{max u' v'} L.card + Cardinal.lift.{max u v} L'.card := by
   unfold MSLanguage.sum
-  simp only [card, Symbols, mk_sum, mk_sigma,sum_add_distrib', lift_add, lift_sum, lift_lift, add_assoc,
-                add_comm (Cardinal.sum fun σ => Cardinal.sum fun i => (#(L'.Functions σ i)).lift)]
+  simp only [card, Symbols, mk_sum, mk_sigma,sum_add_distrib', lift_add, lift_sum,
+    lift_lift, add_assoc,
+    add_comm (Cardinal.sum fun σ => Cardinal.sum fun i => (#(L'.Functions σ i)).lift)]
 
 /-- Passes decidableEq instance through functions, cf. 1-sorted case -/
 instance instDecidableEqFunctions {Sorts : Type z} {f : List Sorts → Sorts → Type*}
     {R : List Sorts → Type*} (σ : List Sorts) (t : Sorts) [DecidableEq (f σ t)] :
     DecidableEq ((⟨f, R⟩ : MSLanguage Sorts).Functions σ t) := inferInstance
 
-instance instDecidableEqRelations {Sorts : Type z}{f : List Sorts → Sorts → Type*}
-     {R : List Sorts →  Type*} (σ : List Sorts) [DecidableEq (R σ)] :
+instance instDecidableEqRelations {Sorts : Type z} {f : List Sorts → Sorts → Type*}
+     {R : List Sorts → Type*} (σ : List Sorts) [DecidableEq (R σ)] :
     DecidableEq ((⟨f, R⟩ : MSLanguage Sorts).Relations σ) := inferInstance
 
 end MSLanguage
@@ -168,7 +172,7 @@ section StructureDefs
 
 
 @[ext]
-class MSStructure {Sorts} (L : MSLanguage Sorts) (M: Sorts → Type w) where
+class MSStructure {Sorts} (L : MSLanguage Sorts) (M : Sorts → Type w) where
 funMap : ∀ {σ t}, L.Functions σ t → SortedTuple σ M → M t := by
     exact fun {σ} => fun {t} => isEmptyElim
 RelMap : ∀ {σ}, L.Relations σ → SortedTuple σ M → Prop := by
@@ -181,15 +185,15 @@ open MSStructure
 
 section MsStructureHoms
 
-variable {Sorts : Type*} (L : MSLanguage Sorts) (M: Sorts → Type w)
+variable {Sorts : Type*} (L : MSLanguage Sorts) (M : Sorts → Type w)
 
 open MSStructure
 
-def Inhabited.trivialStructure {α : Sorts →  Type*} [Inhabited Sorts] [h: ∀ t, Inhabited (α t)]:
-       L.MSStructure α := ⟨λ _ => λ _ =>  default , default⟩
+def Inhabited.trivialStructure {α : Sorts → Type*} [Inhabited Sorts] [h : ∀ t, Inhabited (α t)] :
+       L.MSStructure α := ⟨fun _ => fun _ =>  default , default⟩
 
 
-variable (N: Sorts → Type w') [L.MSStructure M] [L.MSStructure N]
+variable (N : Sorts → Type w') [L.MSStructure M] [L.MSStructure N]
 /-- Homomorphisms between sorted first-order L-structures.
     In general it seems necessary to make σ and t explicit
     to avoid type inference issues, since structures M may map
@@ -241,7 +245,7 @@ structure Equiv extends Fam.MSEquiv M N where
 theorem Equiv.ext {M N : Sorts → Type*} {L : MSLanguage Sorts}
     [L.MSStructure M] [L.MSStructure N]
     {e₁ e₂ : Equiv L M N}
-    (h : ∀ t , e₁.toFun t  = e₂.toFun t ) : e₁ = e₂ := by
+    (h : ∀ t, e₁.toFun t = e₂.toFun t) : e₁ = e₂ := by
   cases e₁ with
   | mk a hf hr =>
     cases e₂ with
@@ -258,7 +262,7 @@ theorem Equiv.ext {M N : Sorts → Type*} {L : MSLanguage Sorts}
 scoped[MSFirstOrder] notation:25 A " ≃[" L "] " B => MSFirstOrder.MSLanguage.Equiv L A B
 
 --For example:  variable (φ : M ≃[L] N)
-variable {L M N} {P : (t: Sorts) → Type*}
+variable {L M N} {P : (t : Sorts) → Type*}
 
 /-- Interpretation of a constant symbol -/
 @[coe]
@@ -283,7 +287,7 @@ theorem nonempty_of_nonempty_constants {t} [h : Nonempty (L.Constants t)] : None
   `[FunLike F L M]` is replaced with `[DFunLike F Sorts (fun t => M t → N t)]`. This
   means that an element φ of F can be coerced to a function which maps sorts `t` to functions
   `M t → N t`. -/
-class HomClass (L : outParam (MSLanguage Sorts)) (F : Type*) (M N: outParam Sorts → Type*)
+class HomClass (L : outParam (MSLanguage Sorts)) (F : Type*) (M N : outParam Sorts → Type*)
   [L.MSStructure M] [L.MSStructure N] [DFunLike F Sorts (fun t => M t → N t)] where
 
   map_fun : ∀ (φ : F) {σ t} (f : L.Functions σ t) (x : SortedTuple σ M),
@@ -294,7 +298,7 @@ class HomClass (L : outParam (MSLanguage Sorts)) (F : Type*) (M N: outParam Sort
 
 /-- `StrongHomClass L F M N` states that `F` is a type of `L`-homomorphisms which preserve
   relations in both directions. -/
-class StrongHomClass (L : outParam (MSLanguage Sorts)) (F : Type*) (M N: outParam Sorts -> Type*)
+class StrongHomClass (L : outParam (MSLanguage Sorts)) (F : Type*) (M N : outParam Sorts -> Type*)
   [L.MSStructure M] [L.MSStructure N] [DFunLike F Sorts (fun t => M t → N t)] where
 
   map_fun : ∀ (φ : F) {σ t} (f : L.Functions σ t) (x : SortedTuple σ M),
@@ -304,34 +308,36 @@ class StrongHomClass (L : outParam (MSLanguage Sorts)) (F : Type*) (M N: outPara
               RelMap r (φ <$>ₛ x) ↔ RelMap r x
 
 instance (priority := 100) StrongHomClass.homClass {F : Type*} [L.MSStructure M]
-    [L.MSStructure N] [DFunLike F Sorts (fun t => M t → N t)]  [StrongHomClass L F M N] : HomClass L F M N where
+    [L.MSStructure N] [DFunLike F Sorts (fun t => M t → N t)]
+    [StrongHomClass L F M N] : HomClass L F M N where
   map_fun := StrongHomClass.map_fun
   map_rel φ _ R x := (StrongHomClass.map_rel φ R x).2
 
 /-- Not an instance to avoid a loop. -/
-theorem HomClass.strongHomClassOfIsAlgebraic [L.IsAlgebraic] {F M N} [L.MSStructure M] [L.MSStructure N]
-    [DFunLike F Sorts (fun t => M t → N t)] [HomClass L F M N] : StrongHomClass L F M N where
+theorem HomClass.strongHomClassOfIsAlgebraic [L.IsAlgebraic] {F M N} [L.MSStructure M]
+    [L.MSStructure N] [DFunLike F Sorts (fun t => M t → N t)] [HomClass L F M N] :
+    StrongHomClass L F M N where
   map_fun := HomClass.map_fun
   map_rel _ _ := isEmptyElim
 
-theorem HomClass.map_constants {F M N t} [m: L.MSStructure M] [n: L.MSStructure N]
-    [DFunLike F Sorts (fun t => M t → N t)] [h: HomClass L F M N]
+theorem HomClass.map_constants {F M N t} [m : L.MSStructure M] [n : L.MSStructure N]
+    [DFunLike F Sorts (fun t => M t → N t)] [h : HomClass L F M N]
     (φ : F) (c : L.Constants t) : (φ t) c  = c  :=
     (HomClass.map_fun φ c default).trans (congr rfl rfl)
 
 /-- Any element of a `HomClass` can be realized as a multisorted first_order homomorphism. -/
-@[simps] def HomClass.toHom {F M N} [L.MSStructure M] [L.MSStructure N] [DFunLike F _ _ ]
+@[simps] def HomClass.toHom {F M N} [L.MSStructure M] [L.MSStructure N] [DFunLike F _ _]
     [HomClass L F M N] : F → M →[L] N := fun φ =>
   ⟨φ, HomClass.map_fun φ, HomClass.map_rel φ⟩
 
 
-attribute [inherit_doc MSFirstOrder.MSLanguage.Hom.map_fun'] MSFirstOrder.MSLanguage.Embedding.map_fun'
-  MSFirstOrder.MSLanguage.HomClass.map_fun MSFirstOrder.MSLanguage.StrongHomClass.map_fun
-  MSFirstOrder.MSLanguage.Equiv.map_fun'
+attribute [inherit_doc MSFirstOrder.MSLanguage.Hom.map_fun']
+  MSFirstOrder.MSLanguage.Embedding.map_fun' MSFirstOrder.MSLanguage.HomClass.map_fun
+  MSFirstOrder.MSLanguage.StrongHomClass.map_fun MSFirstOrder.MSLanguage.Equiv.map_fun'
 
-attribute [inherit_doc MSFirstOrder.MSLanguage.Hom.map_rel'] MSFirstOrder.MSLanguage.Embedding.map_rel'
-  MSFirstOrder.MSLanguage.HomClass.map_rel MSFirstOrder.MSLanguage.StrongHomClass.map_rel
-  MSFirstOrder.MSLanguage.Equiv.map_rel'
+attribute [inherit_doc MSFirstOrder.MSLanguage.Hom.map_rel']
+  MSFirstOrder.MSLanguage.Embedding.map_rel' MSFirstOrder.MSLanguage.HomClass.map_rel
+  MSFirstOrder.MSLanguage.StrongHomClass.map_rel MSFirstOrder.MSLanguage.Equiv.map_rel'
 
 namespace Hom
 open SortedTuple
@@ -378,7 +384,7 @@ open MSStructure
 
 variable {Sorts : Type z} (L : MSLanguage Sorts) (M : Sorts → Type w) [L.MSStructure M]
 
-/-- The identity map from a structure to itself.-/
+/-- The identity map from a structure to itself. -/
 @[refl]
 def id : M →[L] M where
   toFun t m := m
@@ -408,10 +414,10 @@ section CompHom
 open MSStructure
 
 namespace Hom
-variable {Sorts: Type z} {L : MSLanguage Sorts}
+variable {Sorts : Type z} {L : MSLanguage Sorts}
           {M : Sorts → Type w} [L.MSStructure M]
           {N : Sorts → Type w'} [L.MSStructure N]
-          {P: Sorts → Type*} [L.MSStructure P] {Q : (t: Sorts) → Type*} [L.MSStructure Q]
+          {P : Sorts → Type*} [L.MSStructure P] {Q : (t : Sorts) → Type*} [L.MSStructure Q]
 
 /-- Composition of first-order homomorphisms. -/
 @[trans]
@@ -445,7 +451,7 @@ end CompHom
 
 section Embeddings
 
-variable {Sorts: Type z} {L : MSLanguage Sorts}
+variable {Sorts : Type z} {L : MSLanguage Sorts}
           {M : Sorts → Type w} [L.MSStructure M]
           {N : Sorts → Type w'} [L.MSStructure N]
 
@@ -483,7 +489,8 @@ instance strongHomClass : StrongHomClass L (M ↪[L] N) M N where
   map_rel := map_rel'
 
 @[simp]
-theorem map_fun (φ : M ↪[L] N) {t : Sorts} {σ : List Sorts} (f : L.Functions σ t) (x : SortedTuple σ M) :
+theorem map_fun (φ : M ↪[L] N) {t : Sorts} {σ : List Sorts}
+    (f : L.Functions σ t) (x : SortedTuple σ M) :
     φ t (funMap f x) = funMap f (φ <$>ₛ x) :=
   HomClass.map_fun φ f x
 
@@ -541,7 +548,7 @@ theorem ofInjective_toHom [L.IsAlgebraic] {f : M →[L] N} (hf : ∀ t,  Functio
 
 variable (L) (M)
 
-/-- The identity embedding from a structure to itself.  -/
+/-- The identity embedding from a structure to itself. -/
 @[refl]
 def refl : M ↪[L] M where
   toFun := fun t => id
@@ -562,10 +569,10 @@ instance : Inhabited (M ↪[L] M) :=
   ⟨refl L M⟩
 
 @[simp]
-theorem refl_apply (t: Sorts) (x : M t) : refl L M t x = x :=
+theorem refl_apply (t : Sorts) (x : M t) : refl L M t x = x :=
   rfl
 
-variable {P: Sorts → Type*} [L.MSStructure P] {Q : (t: Sorts) → Type*} [L.MSStructure Q]
+variable {P : Sorts → Type*} [L.MSStructure P] {Q : (t : Sorts) → Type*} [L.MSStructure Q]
 
 /-- Composition of first-order Embeddings. -/
 @[trans]
@@ -637,7 +644,7 @@ end Embedding
     {F M N}
     [L.MSStructure M] [L.MSStructure N]
     [DFunLike F Sorts (fun t => M t → N t)]
-    [Fam.InjectivePerSort F]  -- per-sort injectivity, instead of `EmbeddingLike F M N`
+    [Fam.InjectivePerSort F] -- per-sort injectivity, instead of `EmbeddingLike F M N`
     [StrongHomClass L F M N] :
     F → M ↪[L] N := fun φ =>
   ⟨⟨φ, fun t => Fam.InjectivePerSort.inj' φ t⟩,
@@ -647,7 +654,7 @@ end Embedding
 end Embeddings
 
 section Equivs
-variable {Sorts: Type z} {L : MSLanguage Sorts}
+variable {Sorts : Type z} {L : MSLanguage Sorts}
           {M : Sorts → Type w} [L.MSStructure M]
           {N : Sorts → Type w'} [L.MSStructure N]
 
@@ -745,12 +752,13 @@ theorem symm_apply_apply {t} (f : M ≃[L] N) (a : M t) : f.symm t (f t a) = a :
   exact f.left_inv' t a
 
 @[simp]
-theorem map_fun {t : Sorts} (φ : M ≃[L] N) {σ : List Sorts} (f : L.Functions σ t) (x : SortedTuple σ M) :
+theorem map_fun {t : Sorts} (φ : M ≃[L] N) {σ : List Sorts}
+    (f : L.Functions σ t) (x : SortedTuple σ M) :
     φ t (funMap f x) = funMap f (φ <$>ₛ x) :=
   HomClass.map_fun φ f x
 
 @[simp]
-theorem map_constants {t : Sorts} (φ : M ≃[L] N)(c : L.Constants t) : φ t c = c :=
+theorem map_constants {t : Sorts} (φ : M ≃[L] N) (c : L.Constants t) : φ t c = c :=
   HomClass.map_constants φ c
 
 @[simp]
@@ -771,12 +779,12 @@ theorem toEmbedding_toHom (f : M ≃[L] N) : f.toEmbedding.toHom = f.toHom :=
   rfl
 
 @[simp]
-theorem coe_toHom {f : M ≃[L] N} : (f.toHom : (t: Sorts) → (M t → N t)) = (f :(t: Sorts) → (M t → N t)) :=
-  rfl
+theorem coe_toHom {f : M ≃[L] N} :
+    (f.toHom : (t: Sorts) → (M t → N t)) = (f :(t: Sorts) → (M t → N t)) := rfl
 
 @[simp]
-theorem coe_toEmbedding (f : M ≃[L] N) : (f.toEmbedding : (t: Sorts) → (M t → N t)) = (f : (t: Sorts) → (M t → N t)) :=
-  rfl
+theorem coe_toEmbedding (f : M ≃[L] N) :
+    (f.toEmbedding : (t: Sorts) → (M t → N t)) = (f : (t: Sorts) → (M t → N t)) := rfl
 
 theorem injective_toEmbedding : Function.Injective (toEmbedding : (M ≃[L] N) → M ↪[L] N) := by
   intro _ _ h; apply DFunLike.coe_injective; exact congr_arg (DFunLike.coe ∘ Embedding.toHom) h
@@ -827,7 +835,7 @@ instance : Inhabited (M ≃[L] M) :=
 @[simp]
 theorem refl_apply {t} (x : M t) : refl L M t x = x := by simp [refl]; rfl
 
-variable {P: Sorts → Type*} [L.MSStructure P] {Q : (t: Sorts) → Type*} [L.MSStructure Q]
+variable {P : Sorts → Type*} [L.MSStructure P] {Q : (t : Sorts) → Type*} [L.MSStructure Q]
 
 /-- Composition of first-order equivalences. -/
 @[trans]
@@ -947,7 +955,8 @@ theorem comp_right_inj (h : M ≃[L] N) (f g : N ≃[L] P) : f.comp h = g.comp h
 
 end Equiv
 
-/-- Any element of a bijective `StrongHomClass` can be realized as a sorted first_order isomorphism. -/
+/-- Any element of a bijective `StrongHomClass`
+  can be realized as a sorted first_order isomorphism. -/
 @[simps] def StrongHomClass.toEquiv
     {F} {M N : Sorts → Type _}
     [L.MSStructure M] [L.MSStructure N]
@@ -1014,7 +1023,7 @@ end SumStructure
 
 section Empty
 
-variable {Sorts: Type z} {L : MSLanguage Sorts} {M : Sorts → Type w} [L.MSStructure M]
+variable {Sorts : Type z} {L : MSLanguage Sorts} {M : Sorts → Type w} [L.MSStructure M]
 
 /-- Any type can be made uniquely into a structure over the empty language. -/
 def emptyStructure : MSLanguage.empty.MSStructure M where
@@ -1037,7 +1046,7 @@ instance : Unique (MSLanguage.empty.MSStructure M) :=
 variable {N : Sorts → Type w'} [L.MSStructure N]
         [MSLanguage.empty.MSStructure M] [MSLanguage.empty.MSStructure N]
 
-instance (priority := 100) strongHomClassEmpty {F} [DFunLike F Sorts (fun t => (M t →  N t))] :
+instance (priority := 100) strongHomClassEmpty {F} [DFunLike F Sorts (fun t => (M t → N t))] :
     StrongHomClass MSLanguage.empty F M N where
   map_fun := by
     intro φ σ t f x
@@ -1097,7 +1106,8 @@ namespace Equiv
 
 open MSFirstOrder.MSLanguage.MSStructure
 
-variable {Sorts : Type z} {L : MSLanguage Sorts} {M : Sorts → Type w} {N : Sorts → Type w'} [L.MSStructure M]
+variable {Sorts : Type z} {L : MSLanguage Sorts} {M : Sorts → Type w} {N : Sorts → Type w'}
+variable [L.MSStructure M]
 
 def inducedStructure (e : Fam.MSEquiv M N) : L.MSStructure N :=
 { funMap := fun {σ} {t} (f : L.Functions σ t) (x : SortedTuple σ N) =>

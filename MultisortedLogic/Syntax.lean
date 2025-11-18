@@ -13,8 +13,8 @@ and is released under the Apache 2.0 license.
 
 - A `MSFirstOrder.Language.Term` is defined so that `L.Term α` is the type of `L`-terms with free
   variables indexed by `α`.
-- A `MSFirstOrder.Language.Formula` is defined so that `L.Formula α` is the type of `L`-formulas with
-  free variables indexed by `α`.
+- A `MSFirstOrder.Language.Formula` is defined so that `L.Formula α`
+  is the type of `L`-formulas with free variables indexed by `α`.
 - A `MSFirstOrder.Language.Sentence` is a formula with no free variables.
 - A `MSFirstOrder.Language.Theory` is a set of sentences.
 - The variables of terms and formulas can be relabelled with `MSFirstOrder.Language.Term.relabel`,
@@ -57,7 +57,7 @@ namespace MSFirstOrder
 namespace MSLanguage
 
 variable {Sorts : Type z} {L : MSLanguage.{u, v, z} Sorts} {L' : MSLanguage Sorts}
-variable {M : Sorts → Type w} {α : Sorts → Type u'} {β : Sorts →  Type v'} {γ : Sorts → Type*}
+variable {M : Sorts → Type w} {α : Sorts → Type u'} {β : Sorts → Type v'} {γ : Sorts → Type*}
 
 open MSFirstOrder MSStructure Fin Fam
 
@@ -66,7 +66,7 @@ open MSFirstOrder MSStructure Fin Fam
   We cannot use SortedTuple here, as this this trows an error related to nested inductive datatypes.
   Insead, we use dependent maps here, and define appropriate coercions for SortedTuples.
   See also the remark about instDecidableEq_sorted_tuple.
-  -/
+-/
 
 inductive Term (L : MSLanguage.{u, v, z} Sorts) (α : Sorts → Type u') : Sorts → Type max z u' u
  | var t : (α t) → L.Term α t
@@ -79,7 +79,8 @@ inductive Term (α : Type u') : Type max u u'
   | func : ∀ {l : ℕ} (_f : L.Functions l) (_ts : Fin l → Term α), Term α-/
 namespace Term
 
-/-- DecidableEq for SortedTuples as dependent maps (see also the remark at the definition of Terms) -/
+/-- DecidableEq for SortedTuples as dependent maps
+  see also the remark at the definition of Terms. -/
 def instDecidableEq_sorted_tuple {σ : List Sorts} {α : Sorts → Type w}
   [hyp : ∀ i : Fin σ.length, DecidableEq (α (σ.get i))] :
   DecidableEq ((i : Fin σ.length) → α (σ.get i)) :=
@@ -88,12 +89,11 @@ def instDecidableEq_sorted_tuple {σ : List Sorts} {α : Sorts → Type w}
 --TODO: improve this proof
 instance instDecidableEq
   [DecidableEq Sorts]
-  [∀ σ: List Sorts, ∀ i: Fin σ.length, DecidableEq (α (σ.get i))]
+  [∀ σ : List Sorts, ∀ i: Fin σ.length, DecidableEq (α (σ.get i))]
   [∀ s, DecidableEq (α s)]
   [∀ σ t, DecidableEq (L.Functions σ t)] :
   ∀ t, DecidableEq (L.Term α t) := by
-  intro t
-  intro t₁ t₂
+  intro t t₁ t₂
   cases t₁ with
   | var _ a₁ =>
     cases t₂ with
@@ -127,7 +127,7 @@ instance instDecidableEq
 
 open Finset
 
-/-- The `Finset` of variables used in a given term (now multi-sorted)-/
+/-- The `Finset` of variables used in a given term (now multi-sorted). -/
 @[simp]
 def varFinset {t : Sorts} {α : Sorts → Type u'}
     [DecidableEq Sorts] [∀ t, DecidableEq (α t)] : L.Term α t → Finset (Σ t, α t)
@@ -136,7 +136,8 @@ def varFinset {t : Sorts} {α : Sorts → Type u'}
 
 /-- The `Finset` of variables from the left side of a sum used in a given term. -/
 @[simp]
-def varFinsetLeft {t : Sorts} [DecidableEq Sorts][∀ t, DecidableEq (α t)] : L.Term (α ⊕ₛ β ) t→ Finset (Σ t, α t)
+def varFinsetLeft {t : Sorts} [DecidableEq Sorts] [∀ t, DecidableEq (α t)] :
+    L.Term (α ⊕ₛ β ) t → Finset (Σ t, α t)
   | var _ (Sum.inl i) => {⟨_,i⟩}
   | var _ (Sum.inr _i) => ∅
   | func _ _ _ ts => univ.biUnion fun i => (ts i).varFinsetLeft
@@ -150,7 +151,7 @@ def relabel {t : Sorts} (g : α →ₛ β) : L.Term α t → L.Term β t
 variable {t : Sorts}
 
 @[simp]
-theorem relabel_id  {f : L.Term α t} : relabel (Fam.id α) f = f := by
+theorem relabel_id {f : L.Term α t} : relabel (Fam.id α) f = f := by
   induction f with
   | var => rfl
   | func _ _ _ _ ih => simp [ih]
@@ -175,7 +176,7 @@ theorem relabel_comp_relabel (f : α →ₛ β) (g : famMap β γ) :
     (relabel g ∘ relabel f : L.Term α t → L.Term γ t) = Term.relabel (g ∘ₛ f) :=
   funext (relabel_relabel f g)
 
-/-- Relabels a term's variables along a bijection; multisorted version requires some additional help on fibered maps -/
+/-- Relabels a term's variables along a bijection. -/
 @[simps]
 def relabelEquiv (g : ∀ s, α s ≃ β s) {t : Sorts} : L.Term α t ≃ L.Term β t :=
   ⟨relabel (fun s => g s), relabel (fun s => (g s).symm), fun _ => by simp, fun _ => by simp⟩
@@ -219,7 +220,7 @@ def restrictVarLeft [DecidableEq Sorts] {γ : Sorts → Type*}
 | _, func F σ t ts, g =>
   func F σ t fun i =>
     (ts i).restrictVarLeft
-      (g ∘ Set.inclusion (λ _ hx =>
+      (g ∘ Set.inclusion (fun _ hx =>
         -- hx : x ∈ ↑(varFinsetLeft L (ts i)) ∧ x.fst = s
         -- use subset_biUnion_of_mem on hx.1 to get membership in the bigger biUnion,
         -- and keep hx.2 (the fst = s) unchanged
@@ -240,8 +241,8 @@ def Functions.apply₁ (f : L.Functions [s₁] t) (g : L.Term α s₁) : L.Term 
   func _ t f (!ₛ[⟨s₁,g⟩]).toMap
 
 /-- Applies a binary function to two terms. -/
-def Functions.apply₂ (f : L.Functions [s₁,s₂] t) (g₁ : L.Term α s₁) (g₂ : L.Term α s₂) : L.Term α t :=
-  func _ t f (!ₛ[⟨s₁,g₁⟩,⟨s₂,g₂⟩]).toMap
+def Functions.apply₂ (f : L.Functions [s₁, s₂] t) (g₁ : L.Term α s₁) (g₂ : L.Term α s₂) :
+    L.Term α t := func _ t f (!ₛ[⟨s₁,g₁⟩,⟨s₂,g₂⟩]).toMap
 
 
 /- The representation of a function symbol as a term, on fresh variables indexed by Fin. -/
@@ -257,12 +258,14 @@ def constantsToVars {t : Sorts} : L[[γ]].Term α t → L.Term (γ ⊕ₛ α) t
   | func [] t f ts =>
     Sum.casesOn f (fun f => func [] t f fun i => (ts i).constantsToVars) fun c => var t (Sum.inl c)
   | func (s :: σ) t f ts =>
-    Sum.casesOn f (fun f => func (s :: σ) t f fun i => (ts i).constantsToVars) fun c => isEmptyElim c
+    Sum.casesOn f
+    (fun f => func (s :: σ) t f fun i => (ts i).constantsToVars)
+    (fun c => isEmptyElim c)
 
 
 /-- Sends a term with extra variables to a term with constants. -/
 @[simp]
-def varsToConstants  {t : Sorts} : L.Term (γ ⊕ₛ α) t → L[[γ]].Term α t
+def varsToConstants {t : Sorts} : L.Term (γ ⊕ₛ α) t → L[[γ]].Term α t
   | var t (Sum.inr a : (γ ⊕ₛ α) t)  => var t a
   | var _t (Sum.inl a : (γ ⊕ₛ α) _t) => Constants.term (Sum.inr a)
   | func σ t f ts => func σ t (Sum.inl f) fun i => (ts i).varsToConstants
@@ -288,7 +291,7 @@ def constantsVarsEquiv {t : Sorts} : L[[γ]].Term α t ≃ L.Term (γ ⊕ₛ α)
     | func σ t f a ih =>
       cases σ <;> simp [constantsToVars,varsToConstants,ih] ⟩
 
-example  (f g : Fin 0 → Type) : f = g := by exact List.ofFn_inj.mp rfl
+example (f g : Fin 0 → Type) : f = g := by exact List.ofFn_inj.mp rfl
 
 /-- A bijection between terms with constants and terms with extra variables. -/
 def constantsVarsEquivLeft {t : Sorts} : L[[γ]].Term (α ⊕ₛ β) t ≃ L.Term ((γ ⊕ₛ α) ⊕ₛ β ) t :=
@@ -296,8 +299,8 @@ def constantsVarsEquivLeft {t : Sorts} : L[[γ]].Term (α ⊕ₛ β) t ≃ L.Ter
 
 @[simp]
 theorem constantsVarsEquivLeft_apply (g : L[[γ]].Term (α ⊕ₛ β) t) :
-    constantsVarsEquivLeft g = (constantsToVars g).relabel (fun _ => (Equiv.sumAssoc _ _ _).invFun) :=
-  rfl
+    constantsVarsEquivLeft g =
+    (constantsToVars g).relabel (fun _ => (Equiv.sumAssoc _ _ _).invFun) := rfl
 
 @[simp]
 theorem constantsVarsEquivLeft_symm_apply (g : L.Term ((γ ⊕ₛ α) ⊕ₛ β) t) :
@@ -340,10 +343,12 @@ theorem substFunc_term (g : L.Term α t) : g.substFunc (@Functions.term _ _) = g
 
 end Term
 
-def mkVar {α : Sorts → Type*} (σ : List Sorts) : (i : Fin (σ.length)) → Term L (α ⊕ₛ σ.toFam) σ[i] :=
+def mkVar {α : Sorts → Type*} (σ : List Sorts) :
+    (i : Fin (σ.length)) → Term L (α ⊕ₛ σ.toFam) σ[i] :=
   fun i => var σ[i] (Sum.inr ⟨i,by simp⟩)
 
-/-- `σ&i` is notation for the `n`-th free variable, from the corresponding sort determined by a signature σ-/
+/-- `σ&i` is notation for the `n`-th free variable,
+  from the corresponding sort determined by a signature σ-/
 scoped[MSFirstOrder] infix:arg "&" => MSLanguage.mkVar
 
 namespace LHom
@@ -356,7 +361,6 @@ def onTerm {t : Sorts} (φ : L →ᴸ L') : L.Term α t → L'.Term α t
   | var t a => var t a
   | func σ t f ts => func σ t (φ.onFunction f) fun i => onTerm φ (ts i)
 
--- This depends on language map file
 @[simp]
 theorem id_onTerm : ((LHom.id L).onTerm : L.Term α t → L.Term α t) = id := by
   ext t
@@ -409,7 +413,7 @@ inductive BoundedFormula (α : Sorts → Type u') : List Sorts → Type (max u v
       (f : BoundedFormula α (σ ++ [s])) :
       BoundedFormula α σ
 
-abbrev Formula (L:MSLanguage.{u,v,z} Sorts) (α : Sorts → Type u') := BoundedFormula L α []
+abbrev Formula (L : MSLanguage.{u, v, z} Sorts) (α : Sorts → Type u') := BoundedFormula L α []
 
 /-- A sentence is a formula with no free variables. -/
 abbrev Sentence (L : MSLanguage.{u, v, z} Sorts) :=
@@ -421,11 +425,11 @@ abbrev Theory :=
 
 open Finsupp
 
-variable {L : MSLanguage.{u,v,z} Sorts} {α : Sorts → Type u'} {σ : List Sorts} {s : Sorts}
+variable {L : MSLanguage.{u, v, z} Sorts} {α : Sorts → Type u'} {σ : List Sorts} {s : Sorts}
 
 /-- Applies a relation to terms as a bounded formula. -/
-def Relations.boundedFormula {ξ : List Sorts} (R : L.Relations σ) (ts : SortedTuple σ (L.Term (α ⊕ₛ ξ.toFam)) ) :
-    L.BoundedFormula α ξ :=
+def Relations.boundedFormula {ξ : List Sorts} (R : L.Relations σ)
+    (ts : SortedTuple σ (L.Term (α ⊕ₛ ξ.toFam))) : L.BoundedFormula α ξ :=
   BoundedFormula.rel R ts
 
 /-- Applies a unary relation to a term as a bounded formula. -/
@@ -450,8 +454,8 @@ def Relations.formula₁ (r : L.Relations [s]) (t : L.Term α s) : L.Formula α 
   Relations.formula r (SortedTuple.fromList' [⟨s,t⟩])
 
 /-- Applies a binary relation to two terms as a formula. -/
-def Relations.formula₂ (r : L.Relations [s₁,s₂]) (t₁ : L.Term α s₁) (t₂ : L.Term α s₂) : L.Formula α :=
-  Relations.formula r (SortedTuple.fromList' [⟨s₁,t₁⟩,⟨s₂,t₂⟩ ])
+def Relations.formula₂ (r : L.Relations [s₁, s₂]) (t₁ : L.Term α s₁) (t₂ : L.Term α s₂) :
+    L.Formula α := Relations.formula r (SortedTuple.fromList' [⟨s₁, t₁⟩, ⟨s₂, t₂⟩])
 
 /-- The equality of two terms as a first-order formula. -/
 def Term.equal (t₁ t₂ : L.Term α s) : L.Formula α :=
@@ -475,14 +479,14 @@ protected def not (φ : L.BoundedFormula α σ) : L.BoundedFormula α σ :=
 protected def ex {s : Sorts} (φ : L.BoundedFormula α (σ ++ [s])) : L.BoundedFormula α σ :=
   φ.not.all.not
 
-/-- Takes the logical disjunction of two bounded formulas-/
+/-- Takes the logical disjunction of two bounded formulas. -/
 @[match_pattern]
-protected def or (φ ψ: L.BoundedFormula α σ) : L.BoundedFormula α σ :=
+protected def or (φ ψ : L.BoundedFormula α σ) : L.BoundedFormula α σ :=
   φ.not.imp ψ
 
-/-- Takes the logical conjunction of two bounded formulas-/
+/-- Takes the logical conjunction of two bounded formulas. -/
 @[match_pattern]
-protected def and (φ ψ: L.BoundedFormula α σ) : L.BoundedFormula α σ :=
+protected def and (φ ψ : L.BoundedFormula α σ) : L.BoundedFormula α σ :=
   (φ.not.or ψ.not).not
 instance : Top (L.BoundedFormula α σ) :=
   ⟨BoundedFormula.not ⊥⟩
@@ -585,8 +589,9 @@ def exs : ∀ {n}, L.BoundedFormula α n → L.Formula α
 
 /-- Maps bounded formulas along a map of terms and a map of relations.
   TODO: This lemma is currently more restrictive than its one-sorted cousin,
-  as it assumes that arity of formulas is preserved and sorts are literally the same on both sides -/
-def mapTermRel (ft : ∀ σ  : List Sorts, (L.Term (α ⊕ₛ σ.toFam)) →ₛ (L'.Term (β ⊕ₛ σ.toFam)) )
+  as it assumes that arity of formulas is preserved and sorts are literally the same
+  on both sides -/
+def mapTermRel (ft : ∀ σ : List Sorts, (L.Term (α ⊕ₛ σ.toFam)) →ₛ (L'.Term (β ⊕ₛ σ.toFam)) )
     (fr : ∀ σ, L.Relations σ → L'.Relations σ) :
     ∀ {σ}, L.BoundedFormula α σ → L'.BoundedFormula β σ
   | _σ, falsum => falsum
@@ -753,7 +758,8 @@ open BoundedFormula
 
 /-- Maps a bounded formula's symbols along a language map. -/
 @[simp]
-def onBoundedFormula (g : L →ᴸ L') : ∀ {ξ : List Sorts}, L.BoundedFormula α ξ → L'.BoundedFormula α ξ
+def onBoundedFormula (g : L →ᴸ L') :
+    ∀ {ξ : List Sorts}, L.BoundedFormula α ξ → L'.BoundedFormula α ξ
   | _ξ, falsum => falsum
   | _ξ, BoundedFormula.equal t₁ t₂ => (g.onTerm t₁).bdEqual (g.onTerm t₂)
   | _ξ, rel R ts => (g.onRelation R).boundedFormula (SortedTuple.fromMap (fun i => g.onTerm (ts i)))
@@ -767,7 +773,8 @@ theorem id_onBoundedFormula :
   induction f with
   | falsum => rfl
   | equal => rw [onBoundedFormula, LHom.id_onTerm, id, id, id, Term.bdEqual]
-  | rel => simp only [onBoundedFormula, LHom.id_onTerm,id_onRelation,id,Relations.boundedFormula,SortedTuple.toMap_fromMap]
+  | rel => simp only [onBoundedFormula, LHom.id_onTerm,id_onRelation,
+    id, Relations.boundedFormula, SortedTuple.toMap_fromMap]
   | imp _ _ ih1 ih2 => rw [onBoundedFormula, ih1, ih2, id, id, id]
   | all _ ih3 => rw [onBoundedFormula, ih3, id, id]
 
@@ -1027,3 +1034,8 @@ end Language
 
 end MSFirstOrder
 -/
+end Formula
+
+end MSLanguage
+
+end MSFirstOrder
