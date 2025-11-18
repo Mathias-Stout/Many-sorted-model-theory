@@ -5,40 +5,6 @@ Based on the corresponding Mathlib file
 Mathlib\ModelTheory\Semantics.lean
 which was authored by 2021 Aaron Anderson, Jesse Michael Han, Floris van Doorn,
 and is released under the Apache 2.0 license.
--/
-
-/-!
-# Basics on First-Order Semantics
-
-This file defines the interpretations of first-order terms, formulas, sentences, and theories
-in a style inspired by the [Flypitch project](https://flypitch.github.io/).
-
-## Main Definitions
-
-- `MSFirstOrder.Language.Term.realize` is defined so that `t.realize v` is the term `t` evaluated at
-  variables `v`.
-- `MSFirstOrder.Language.BoundedFormula.Realize` is defined so that `φ.Realize v xs` is the bounded
-  formula `φ` evaluated at tuples of variables `v` and `xs`.
-- `MSFirstOrder.Language.Formula.Realize` is defined so that `φ.Realize v` is the formula `φ`
-  evaluated at variables `v`.
-- `MSFirstOrder.Language.Sentence.Realize` is defined so that `φ.Realize M` is the sentence `φ`
-  evaluated in the structure `M`. Also denoted `M ⊨ φ`.
-- `MSFirstOrder.Language.Theory.Model` is defined so that `T.Model M` is true if and only if every
-  sentence of `T` is realized in `M`. Also denoted `T ⊨ φ`.
-
-## Main Results
-
-- Several results in this file show that syntactic constructions such as `relabel`, `castLE`,
-  `liftAt`, `subst`, and the actions of language maps commute with realization of terms, formulas,
-  sentences, and theories.
-
-## Implementation Notes
-
-- Formulas use a modified version of de Bruijn variables. Specifically, a `L.BoundedFormula α n`
-  is a formula with some variables indexed by a type `α`, which cannot be quantified over, and some
-  indexed by `Fin n`, which can. For any `φ : L.BoundedFormula α (n + 1)`, we define the formula
-  `∀' φ : L.BoundedFormula α n` by universally quantifying over the variable indexed by
-  `n : Fin (n + 1)`.
 
 ## References
 

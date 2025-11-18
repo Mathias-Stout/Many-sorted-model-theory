@@ -4,44 +4,6 @@ import MultisortedLogic.LanguageMap
 Based on the corresponding Mathlib file Mathlib\ModelTheory\Syntax.lean
 which was authored by 2021 Aaron Anderson, Jesse Michael Han, Floris van Doorn,
 and is released under the Apache 2.0 license.
--/
-
-/-!
-# Basics on First-Order Syntax
-
-## Main Definitions
-
-- A `MSFirstOrder.Language.Term` is defined so that `L.Term α` is the type of `L`-terms with free
-  variables indexed by `α`.
-- A `MSFirstOrder.Language.Formula` is defined so that `L.Formula α`
-  is the type of `L`-formulas with free variables indexed by `α`.
-- A `MSFirstOrder.Language.Sentence` is a formula with no free variables.
-- A `MSFirstOrder.Language.Theory` is a set of sentences.
-- The variables of terms and formulas can be relabelled with `MSFirstOrder.Language.Term.relabel`,
-  `MSFirstOrder.Language.BoundedFormula.relabel`, and `MSFirstOrder.Language.Formula.relabel`.
-- Given an operation on terms and an operation on relations,
-  `MSFirstOrder.Language.BoundedFormula.mapTermRel` gives an operation on formulas.
-- `MSFirstOrder.Language.BoundedFormula.castLE` adds more `Fin`-indexed variables.
-- `MSFirstOrder.Language.BoundedFormula.liftAt` raises the indexes of the `Fin`-indexed variables
-  above a particular index.
-- `MSFirstOrder.Language.Term.subst` and `MSFirstOrder.Language.BoundedFormula.subst` substitute
-  variables with given terms.
-- `MSFirstOrder.Language.Term.substFunc` instead substitutes function definitions with given terms.
-- Language maps can act on syntactic objects with functions such as
-  `MSFirstOrder.Language.LHom.onFormula`.
-- `MSFirstOrder.Language.Term.constantsVarsEquiv` and
-  `MSFirstOrder.Language.BoundedFormula.constantsVarsEquiv` switch terms and formulas between having
-  constants in the language and having extra variables indexed by the same type.
-
-## Implementation Notes
-
-- Formulas use a modified version of de Bruijn variables. Specifically, a `L.BoundedFormula α n`
-  is a formula with some variables indexed by a type `α`, which cannot be quantified over, and some
-  indexed by `Fin n`, which can. For any `φ : L.BoundedFormula α (n + 1)`, we define the formula
-  `∀' φ : L.BoundedFormula α n` by universally quantifying over the variable indexed by
-  `n : Fin (n + 1)`.
-
-## References
 
 For the Flypitch project:
 - [J. Han, F. van Doorn, *A formal proof of the independence of the continuum hypothesis*]
