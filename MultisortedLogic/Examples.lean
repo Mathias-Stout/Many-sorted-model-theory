@@ -462,7 +462,7 @@ theorem R_has_dim_ge_1 :  RR ⊨ rk_ge_1 := by
   simp [fromList', toMap]
   intro h
   exact h
-
+/-
 theorem R_has_dim_exact_1 : RR ⊨ rk_eq_1 := by
   unfold rk_eq_1 Sentence.Realize Formula.Realize
   have : NeZero [MSort,RSort].length := Nat.instNeZeroSucc
@@ -484,14 +484,35 @@ theorem R_has_dim_exact_1 : RR ⊨ rk_eq_1 := by
     simp [fromList', toMap]
     intro h
     exact h
-  · unfold rk_ge_2
+  · unfold rk_ge_2 eq_zero_implies_coeff_zero
+    have : NeZero [MSort, MSort, RSort, RSort].length := Nat.instNeZeroSucc
     simp
     intro x x₁
     use 1
     use 1
-    rw[eq_zero_implies_coeff_zero]
-    sorry
-    -- It seems this side of things is much harder
+    rw [Functions.apply₂] at *
+    simp
+    rw [Functions.apply₂] at *
+    rw [eval₂₁, eval₂₂] at *
+    simp
+    have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+      (((((default : SortedTuple [] RR).extend x).extend x₁).extend 1).extend 1).toFMap)
+          [MSort, MSort, RSort, RSort]&3 = (1 : ℝ) := rfl
+    rw [this]
+    have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+      (((((default : SortedTuple [] RR).extend x).extend x₁).extend 1).extend 1).toFMap)
+        [MSort, MSort, RSort, RSort]&2 = (1 : ℝ) := rfl
+    rw [this]
+    simp
+    constructor
+    · simp [fromList', fromList, toMap]
+      rw [eval₂₁, eval₂₂]
+      have : realize
+-/
+
+
+
+
 
 /- TODO : It would be nice to have some metaprogramming available, so that we could,
 in a reasonable way, state the def which takes as input a positive natural and outputs
@@ -512,10 +533,30 @@ noncomputable def torsion_free : rmod.Sentence :=
   ∼ (has_torsion)
 
 /-- ℂ as an ℝ-module has no ℝ-torsion -/
-theorem C_has_no_torsion : RC ⊨ torsion_free := by
+theorem C_torsion_free : RC ⊨ torsion_free := by
+  have : NeZero [MSort, RSort].length := Nat.instNeZeroSucc
   unfold torsion_free has_torsion
   simp [Sentence.Realize, Formula.Realize]
-  intro C_has_torsion
-  sorry
+  intro x x₁
+  have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+    (((default : SortedTuple [] RC).extend x).extend x₁).toFMap) [MSort, RSort]&1 = x₁ := rfl
+  rw [this]
+  have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+    (((default : SortedTuple [] RC).extend x).extend x₁).toFMap) [MSort, RSort]&0 = x := rfl
+  rw [this]
+  intro hx₁ hx
+  rw [SortedTuple.eval₂₁, SortedTuple.eval₂₂]
+  simp [fromList', toMap]
+  rw [constantMap]
+  have : funMap zeroMFunc (default : SortedTuple [] RC) = (0 : ℂ) := rfl
+  rw [this]
+  have : RC MSort = ℂ := rfl
+  rw [this] at x
+  have : RC RSort = ℝ := rfl
+  rw [this] at x₁
+  simp
+  constructor
+  · exact hx₁
+  · exact hx
 end MSLanguage
 end MSFirstOrder
