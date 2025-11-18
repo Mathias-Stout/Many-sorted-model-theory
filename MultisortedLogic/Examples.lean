@@ -378,12 +378,11 @@ noncomputable def eq_zero_implies_coeff_zero :
   have : NeZero ξ.length := Nat.instNeZeroSucc
   ((((ξ&2) •' (ξ&0)) +ₘ ((ξ&3) •' (ξ&1)))
     =' Constants.term zeroMFunc) ⟹
-    ( ∼ ( ((ξ&2) ='(Constants.term zeroRFunc)) ⟹ ∼ (((ξ&3) ='(Constants.term zeroRFunc)))))
+    (ξ&2 =' Constants.term zeroRFunc ⊓ ξ&3 =' Constants.term zeroRFunc)
 
 /-- An rmod-sentence saying that the structure as a module has rank at least 2 -/
 noncomputable def rk_ge_2 : rmod.Sentence :=
   ∃' ∃' ∀' ∀' eq_zero_implies_coeff_zero
-
 
 /-- An LRMod-sentence saying that the structure is a rank 1 module -/
 noncomputable def rk_eq_1 : rmod.Sentence :=
@@ -462,10 +461,12 @@ theorem R_has_dim_ge_1 :  RR ⊨ rk_ge_1 := by
   simp [fromList', toMap]
   intro h
   exact h
+
 /-
 theorem R_has_dim_exact_1 : RR ⊨ rk_eq_1 := by
   unfold rk_eq_1 Sentence.Realize Formula.Realize
   have : NeZero [MSort,RSort].length := Nat.instNeZeroSucc
+  have : NeZero [MSort, MSort, RSort, RSort].length := Nat.instNeZeroSucc
   simp
   constructor
   · unfold rk_ge_1
@@ -484,35 +485,92 @@ theorem R_has_dim_exact_1 : RR ⊨ rk_eq_1 := by
     simp [fromList', toMap]
     intro h
     exact h
-  · unfold rk_ge_2 eq_zero_implies_coeff_zero
-    have : NeZero [MSort, MSort, RSort, RSort].length := Nat.instNeZeroSucc
+  · unfold rk_ge_2 BoundedFormula.Realize
     simp
-    intro x x₁
+    intro a x
     use 1
     use 1
-    rw [Functions.apply₂] at *
+    unfold eq_zero_implies_coeff_zero
     simp
+    rw [eval₂₂,eval₂₁] at *
     rw [Functions.apply₂] at *
-    rw [eval₂₁, eval₂₂] at *
-    simp
-    have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
-      (((((default : SortedTuple [] RR).extend x).extend x₁).extend 1).extend 1).toFMap)
+    simp [fromList', fromList, toMap]
+    rw [eval₂₁,eval₂₂]
+    have hreal₀ : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+      (((((default: SortedTuple [] RR).extend a).extend x).extend 1).extend 1).toFMap)
+          [MSort, MSort, RSort, RSort]&0 = a := rfl
+    have hreal₁ : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+      (((((default: SortedTuple [] RR).extend a).extend x).extend 1).extend 1).toFMap)
+          [MSort, MSort, RSort, RSort]&1 = x := rfl
+    have hreal₂ : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+      (((((default: SortedTuple [] RR).extend a).extend x).extend 1).extend 1).toFMap)
+          [MSort, MSort, RSort, RSort]&2 = (1 : ℝ) := rfl
+    have hreal₃ : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+      (((((default: SortedTuple [] RR).extend a).extend x).extend 1).extend 1).toFMap)
           [MSort, MSort, RSort, RSort]&3 = (1 : ℝ) := rfl
-    rw [this]
-    have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
-      (((((default : SortedTuple [] RR).extend x).extend x₁).extend 1).extend 1).toFMap)
-        [MSort, MSort, RSort, RSort]&2 = (1 : ℝ) := rfl
-    rw [this]
+    rw [hreal₁,hreal₂,hreal₃] at *
     simp
-    constructor
-    · simp [fromList', fromList, toMap]
-      rw [eval₂₁, eval₂₂]
-      have : realize
+    rw [hreal₂]
+    sorry
 -/
 
-
-
-
+/-- A theorem stating that ℂ as a ℝ-module has dimension at least 2 -/
+theorem C_has_dim_ge_2 : RC ⊨ rk_ge_2 := by
+  have : NeZero [MSort, MSort, RSort, RSort].length := Nat.instNeZeroSucc
+  unfold rk_ge_2 eq_zero_implies_coeff_zero Sentence.Realize
+    Formula.Realize BoundedFormula.Realize
+  simp
+  use 1
+  let i := Complex.I
+  use (i : ℂ)
+  have i_re : (i).re = 0 := rfl
+  have i_im : (i).im = 1 := rfl
+  intro x x₁
+  rw [Functions.apply₂]
+  have hrel₀ : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+    (((((default : SortedTuple [] RC).extend 1).extend i).extend x).extend x₁).toFMap)
+          [MSort, MSort, RSort, RSort]&0 = (1 : ℂ) := rfl
+  have hrel₁ : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+    (((((default : SortedTuple [] RC).extend 1).extend i).extend x).extend x₁).toFMap)
+          [MSort, MSort, RSort, RSort]&1 = i := rfl
+  have hrel₂ : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+    (((((default : SortedTuple [] RC).extend 1).extend i).extend x).extend x₁).toFMap)
+          [MSort, MSort, RSort, RSort]&2 = x := rfl
+  have hrel₃ : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
+    (((((default : SortedTuple [] RC).extend 1).extend i).extend x).extend x₁).toFMap)
+        [MSort, MSort, RSort, RSort]&3 = x₁ := rfl
+  rw [hrel₃, hrel₂]
+  simp
+  rw [eval₂₁,eval₂₂] at *
+  simp [fromList', toMap]
+  rw [hrel₁, eval₂₁, eval₂₂] at *
+  simp
+  rw [hrel₂,hrel₀,eval₂₁,eval₂₂, hrel₃]
+  simp [toMap]
+  have its_R : RC RSort = ℝ := rfl
+  have its_C : RC MSort = ℂ := rfl
+  rw [constantMap]
+  have : funMap zeroMFunc (default : SortedTuple [] RC) = (0 : ℂ) := rfl
+  rw [this]
+  rw [constantMap]
+  have : funMap zeroRFunc (default : SortedTuple [] RC) = (0 : ℝ) := rfl
+  rw [this]
+  have re :  ((x : ℝ) + (x₁ : ℝ) * i).re = x := by
+    simp
+    exact Or.inr i_re
+  have im : ((x : ℝ) + (x₁ : ℝ)* i).im = x₁ := by
+    simp
+    rw [i_im]
+    simp
+  simp [Complex.ext_iff]
+  rw [i_re]
+  simp
+  intro hx0 hx1
+  constructor
+  · exact hx0
+  · rw [i_im] at hx1
+    simp at hx1
+    exact hx1
 
 /- TODO : It would be nice to have some metaprogramming available, so that we could,
 in a reasonable way, state the def which takes as input a positive natural and outputs
