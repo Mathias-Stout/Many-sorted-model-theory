@@ -378,7 +378,7 @@ noncomputable def eq_zero_implies_coeff_zero :
   have : NeZero ξ.length := Nat.instNeZeroSucc
   ((((ξ&2) •' (ξ&0)) +ₘ ((ξ&3) •' (ξ&1)))
     =' Constants.term zeroMFunc) ⟹
-    (ξ&2 =' Constants.term zeroRFunc ⊓ ξ&3 =' Constants.term zeroRFunc)
+    ((ξ&2 =' Constants.term zeroRFunc) ⊓ (ξ&3 =' Constants.term zeroRFunc))
 
 /-- An rmod-sentence saying that the structure as a module has rank at least 2 -/
 noncomputable def rk_ge_2 : rmod.Sentence :=
@@ -461,58 +461,6 @@ theorem R_has_dim_ge_1 :  RR ⊨ rk_ge_1 := by
   simp [fromList', toMap]
   intro h
   exact h
-
-/-
-theorem R_has_dim_exact_1 : RR ⊨ rk_eq_1 := by
-  unfold rk_eq_1 Sentence.Realize Formula.Realize
-  have : NeZero [MSort,RSort].length := Nat.instNeZeroSucc
-  have : NeZero [MSort, MSort, RSort, RSort].length := Nat.instNeZeroSucc
-  simp
-  constructor
-  · unfold rk_ge_1
-    simp
-    use 1
-    intro a
-    have :  realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
-      (((default : SortedTuple [] RR).extend 1).extend a).toFMap)
-              ([MSort, RSort]&1) = a := rfl
-    rw [this]
-
-    have : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
-      (((default : SortedTuple [] RR).extend 1).extend a).toFMap)
-              ([MSort, RSort]&0) = (1: ℝ) := rfl
-    rw [this, eval₂₁, eval₂₂]
-    simp [fromList', toMap]
-    intro h
-    exact h
-  · unfold rk_ge_2 BoundedFormula.Realize
-    simp
-    intro a x
-    use 1
-    use 1
-    unfold eq_zero_implies_coeff_zero
-    simp
-    rw [eval₂₂,eval₂₁] at *
-    rw [Functions.apply₂] at *
-    simp [fromList', fromList, toMap]
-    rw [eval₂₁,eval₂₂]
-    have hreal₀ : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
-      (((((default: SortedTuple [] RR).extend a).extend x).extend 1).extend 1).toFMap)
-          [MSort, MSort, RSort, RSort]&0 = a := rfl
-    have hreal₁ : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
-      (((((default: SortedTuple [] RR).extend a).extend x).extend 1).extend 1).toFMap)
-          [MSort, MSort, RSort, RSort]&1 = x := rfl
-    have hreal₂ : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
-      (((((default: SortedTuple [] RR).extend a).extend x).extend 1).extend 1).toFMap)
-          [MSort, MSort, RSort, RSort]&2 = (1 : ℝ) := rfl
-    have hreal₃ : realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
-      (((((default: SortedTuple [] RR).extend a).extend x).extend 1).extend 1).toFMap)
-          [MSort, MSort, RSort, RSort]&3 = (1 : ℝ) := rfl
-    rw [hreal₁,hreal₂,hreal₃] at *
-    simp
-    rw [hreal₂]
-    sorry
--/
 
 /-- A theorem stating that ℂ as a ℝ-module has dimension at least 2 -/
 theorem C_has_dim_ge_2 : RC ⊨ rk_ge_2 := by
