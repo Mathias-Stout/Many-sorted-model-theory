@@ -82,5 +82,36 @@ lemma realize_compactifier₄₄ {Sorts : Type _} {L' : MSLanguage Sorts} (M : S
   realize (L := L') (Fam.sumElim (fun _ (a : Empty) => Empty.elim a)
     (((((default : SortedTuple [] M).extend a).extend b).extend c).extend d).toFMap)
       ([s,t,r,x]&3) = d := rfl
+
+lemma lists_are_the_same {Sorts : Type*} {σ : List Sorts} {α : Sorts → Type*}
+  {s : Sorts} :
+  α (σ ++ [s])[σ.length] = α s := by simp
+@[simp]
+lemma realize_compactifier
+    {Sorts : Type u} {L' : MSLanguage Sorts}
+    (M : Sorts → Type v) (σ : List Sorts) (s : Sorts)
+    [MSStructure L' M] (b : M s) :
+  realize (L := L')
+    (Fam.sumElim (fun _ (a : Empty) => Empty.elim a)
+      (SortedTuple.extend (SortedTuple.{u, v} σ M) b).toFMap)
+    ((σ ++ [s])&⟨σ.length, by
+      simp [List.length_append]⟩)
+  = b :=
+rfl
+
+@[simp]
+lemma realize_compactifier
+    {Sorts : Type u} {L' : MSLanguage Sorts}
+    (M : Sorts → Type v) (σ : List Sorts) (s : Sorts)
+    [MSStructure L' M] (b : M s) :
+  realize (L := L')
+    (Fam.sumElim (fun _ (a : Empty) => Empty.elim a)
+      (SortedTuple.extend (SortedTuple σ M) b).toFMap)
+    ((σ ++ [s]) & Fin.last (σ.length))
+  = b := by
+  -- This is the key fact:
+  simpa using
+    SortedTuple.extend_getElem_self (σ := σ) (M := M) (b := b)
+
 end MSLanguage
 end MSFirstOrder

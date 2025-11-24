@@ -279,18 +279,14 @@ example : RR  ⊨ no_two_torsion := by
   letI := compatibleOfModule ℝ ℝ
   simp [Sentence.Realize, Formula.Realize ,SortedTuple.fromList',
     SortedTuple.eval₂₁, SortedTuple.eval₂₂, SortedTuple.eval₁, SortedTuple.toMap]
-  have : NeZero [MSort].length := Nat.instNeZeroSucc
   intro x
   -- I am not sure why this gets unfolded as Term.realize
   have : Term.realize (L := rmod) (Fam.sumElim (fun s (a : Empty) ↦ a.elim)
     ((default : SortedTuple [] (RMod ℝ ℝ)).extend x).toFMap) 0 = (0 : RMod ℝ ℝ MSort) := rfl
   rw [this]
   intro h
-  aesop
-
-
-
-
+  norm_num at *
+  exact h
 
 open SortedTuple
 
