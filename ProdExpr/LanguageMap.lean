@@ -5,9 +5,7 @@ Based on the corresponding Mathlib file Mathlib\ModelTheory\LanguageMap.lean
 which was authored by 2021 Aaron Anderson, Jesse Michael Han, Floris van Doorn,
 and is released under the Apache 2.0 license.
 
-## References
-
-For the Flypitch project:
+References for the Flypitch project:
 - [J. Han, F. van Doorn, *A formal proof of the independence of the continuum hypothesis*]
   [flypitch_cpp]
 - [J. Han, F. van Doorn, *A formalization of forcing and the unprovability of
