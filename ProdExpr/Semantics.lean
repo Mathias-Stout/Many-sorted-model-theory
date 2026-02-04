@@ -780,19 +780,19 @@ theorem realize_relabel {β : Sorts → Type*} {τ σ : Signature Sorts}
   rw [relabel]
   simp only [realize_subst, realize_rename, realize_reindex]
   congrm φ.Realize ?_ ?_
-  ext s x
-  let zs : β s ⊕ τ.Idx s := g s x
-  change realize (Fam.sumElim v (Interpret.get (ys, xs)))
-    (Fam.sumElim (varOf inl) (fun s v ↦ var s (Sum.inr v.left)) s zs) =
-  Fam.sumElim v (ys.get) s zs
-  cases zs
-  ·simp_all only [Sum.elim_inl, realize_varOf]
-   rfl
-  ·simp_all only [Sum.elim_inr, realize_var]
-   rfl
-  ·ext s v_1 : 1
-   simp_all only [get_comap]
-   rfl
+  · ext s x
+    let zs : β s ⊕ τ.Idx s := g s x
+    change realize (Fam.sumElim v (Interpret.get (ys, xs)))
+      (Fam.sumElim (varOf inl) (fun s v ↦ var s (Sum.inr v.left)) s zs) =
+      Fam.sumElim v (ys.get) s zs
+    cases zs
+    · simp_all only [Sum.elim_inl, realize_varOf]
+      rfl
+    · simp_all only [Sum.elim_inr, realize_var]
+      rfl
+  · ext s v_1 : 1
+    simp_all only [get_comap]
+    rfl
 
 theorem realize_openVars_aux
     (n : ℕ)
@@ -1335,17 +1335,15 @@ theorem realize_toBoundedFormula
   φ.Realize x ↔
     lf.toBoundedFormula.Realize default (lf.toTuple M x) := by
     unfold toBoundedFormula toTuple comap;
-    rw[realize_reindex]
-    rw[realize_closeVars]
-    rw[realize_rename, realize_rename]
-    rw[realize_restrictFreeVar (M:= M) (v':= x) ]
-    unfold Formula.Realize
-    congr!
-    intro s a h
-    simp_all only  [Pi.default_def, Fam.id, id_eq, Sum.elim_comp_inr, Function.comp_apply]
-    unfold Interpret.comap
-    simp only [fromGet, reduce_nil, PUnit.default_eq_unit, SigEquiv.nilLeft, SigMap.nil_left,
-      fromGet_get, MSEquiv.inv_to]
+    rw[realize_reindex, realize_closeVars, realize_rename, realize_rename,
+      realize_restrictFreeVar (M:= M) (v':= x) ]
+    · unfold Formula.Realize
+      congr!
+    · intro s a h
+      simp_all only  [Pi.default_def, Fam.id, id_eq, Sum.elim_comp_inr, Function.comp_apply]
+      unfold Interpret.comap
+      simp only [fromGet, reduce_nil, PUnit.default_eq_unit, SigEquiv.nilLeft, SigMap.nil_left,
+        fromGet_get, MSEquiv.inv_to]
 
 /-- Semantic correctness for `toFormula` at the formula level (σ = nil). -/
 theorem realize_toFormula_formula
@@ -1554,7 +1552,7 @@ theorem _root_.MSFirstOrder.MSLanguage.Formula.realize_iAlls
       ∀ (i : β →ₛ M), φ.Realize (Fam.sumElim v i) := by
   simp only [Formula.iAlls, realize_alls, Prod.forall, reduce_nil, PUnit.default_eq_unit,
     forall_const]
-  simp? [Formula.Realize]
+  simp only [reduce_nil, Formula.Realize, PUnit.default_eq_unit]
   let σ := (Signature.famToSignature β).fst
   let e : β ≃ₛ σ.Idx := (Signature.famToSignature β).snd
   change (∀ (a : M[^]σ),
@@ -1585,8 +1583,9 @@ theorem _root_.MSFirstOrder.MSLanguage.Formula.realize_iExs
     [Finite (Sigma β)] {φ : L.Formula (α ⊕ₛ β)} {v : α →ₛ M} :
     (φ.iExs β).Realize v ↔
       ∃ (i : β →ₛ M), φ.Realize (Fam.sumElim v i) := by
-  simp [Formula.iExs]
-  simp [Formula.Realize]
+  simp only [Formula.iExs, realize_exs, Prod.exists, reduce_nil, PUnit.default_eq_unit,
+    exists_const]
+  simp only [reduce_nil, Formula.Realize, PUnit.default_eq_unit]
   let σ := (Signature.famToSignature β).fst
   let e : β ≃ₛ σ.Idx := (Signature.famToSignature β).snd
   change
@@ -1604,8 +1603,8 @@ theorem _root_.MSFirstOrder.MSLanguage.Formula.realize_iExs
   · rintro ⟨i, hi⟩
     refine ⟨Interpret.fromGet (i ∘ₛ e.symm), ?_⟩
     rw [realize_relabel]
-    simp [Fam.sumElim, Sum.elim_map, CompTriple.comp_eq, reduce_nil,
-          Function.comp_assoc, MSEquiv.symm]
+    simp only [Fam.sumElim, MSEquiv.symm, fromGet_get, Sum.elim_map, CompTriple.comp_eq,
+      Function.comp_assoc, MSEquiv.inv_comp, reduce_nil]
     exact hi
 
 @[simp]
@@ -1678,9 +1677,10 @@ theorem _root_.MSFirstOrder.MSLanguage.Formula.realize_iExsUnique {X} [Finite (S
     {φ : L.Formula (α ⊕ₛ X)} {v : α →ₛ M} : (φ.iExsUnique X).Realize v ↔
       ∃! (i : X →ₛ M), φ.Realize (Fam.sumElim v i) := by
   rw [Formula.iExsUnique, ExistsUnique]
-  simp[Formula.Realize]
+  simp only [Formula.Realize, PUnit.default_eq_unit, reduce_nil, realize_iExs, realize_inf,
+    realize_iAlls, realize_imp, realize_rename, realize_iInf]
   refine exists_congr (fun i => and_congr_right' (forall_congr' (fun y => ?_)))
-  rw[sumComp_elim]
+  rw [sumComp_elim]
   congr!
   apply Iff.intro
   · intro h
