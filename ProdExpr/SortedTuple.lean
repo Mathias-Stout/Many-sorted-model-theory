@@ -278,6 +278,10 @@ def mapClass {F : Type*} {base : Type*} {M N : Fam base} [Fam.FamMapClass F M N]
   so we borrow this notation for "Functor.map". -/
 infixr:100 " <$>ₛ " => Interpret.mapClass
 
+lemma mapClass_map_prod {F} [FamMapClass F α β] (f : F) (xs : α [^] σ) (ys : α [^] ξ) :
+  Interpret.mapClass f (σ := σ ⨯ ξ) (xs, ys) = (f <$>ₛ xs, f <$>ₛ ys) := rfl
+
+@[simp]
 theorem mapClass_eq_map {F} [FamMapClass F α β] (f : F) (xs : α [^] σ) :
     f <$>ₛ xs = map (f : α →ₛ β) xs := rfl
 
@@ -396,6 +400,11 @@ instance instDecidableEq
     DecidableEq (α[^]σ) :=
   Interpret.decidableEq (σ := σ)
 
+instance {σ : Signature S} [∀ a, Nonempty (α a)] : Nonempty (α [^] σ) := by
+  induction σ with
+  | nil => infer_instance
+  | of => infer_instance
+  | prod => infer_instance
 
 open Signature
 open Fam
@@ -408,8 +417,7 @@ def SortedMap (α : Fam.{v} S) (σ : Signature S) :=
 instance instCoeFam : Coe (σ.Interpret α) (σ.IdxFam →ₛ α) where
   coe := get
 
-@[ext]
-lemma ext {xs ys : σ.Interpret α} (h : ∀ (s : S) (v : σ.Idx s),
+lemma ext' {xs ys : σ.Interpret α} (h : ∀ (s : S) (v : σ.Idx s),
         xs.get s v = ys.get s v) : xs = ys := by
   induction σ
   case nil => simp_all only [reduce_nil, PUnit.default_eq_unit, implies_true]
@@ -435,6 +443,11 @@ lemma ext {xs ys : σ.Interpret α} (h : ∀ (s : S) (v : σ.Idx s),
       simp only [get] at h'
       exact h'
 
+lemma ext_iff' {xs ys : σ.Interpret α} :
+    xs = ys ↔ ∀ (s : S) (v : σ.Idx s), xs.get s v = ys.get s v := by
+  constructor
+  · exact fun h s v ↦ by rw [h]
+  · exact ext'
 end instances
 
 section quotients
@@ -445,18 +458,49 @@ If the underlying family `α` carries a many-sorted setoid, then each interpreta
 `α[^]σ` inherits a setoid by transporting the pointwise setoid on maps
 `σ.IdxFam →ₛ α` along `SortedTuple.get`.
 -/
-instance instSetoidInterpret [MSSetoid α] : Setoid (α[^]σ) :=
-  Setoid.comap Interpret.get
-    (MSSetoid.famMapSetoid _ : Setoid (σ.IdxFam →ₛ α))
+instance instSetoidInterpret [MSSetoid α] : {σ : Signature S} → Setoid (α[^]σ)
+  | nil => {
+    r := fun _ _ ↦ True
+    iseqv := {
+      refl := fun _ ↦ True.intro
+      symm := id
+      trans := fun _ ↦ id
+    }
+  }
+  | of _ => inferInstance
+  | prod σ τ => Setoid.prod (instSetoidInterpret (σ := σ)) (instSetoidInterpret (σ := τ))
+
+@[simp]
+lemma prod_equiv [MSSetoid α] {xs xs' : α [^] σ} {ys ys' : α [^] ξ} :
+    instSetoidInterpret (σ := σ ⨯ ξ) (xs, ys) (xs', ys') ↔ (xs ≈ xs' ∧ ys ≈ ys') := by
+  rfl
 
 instance instMSSetoidInterpret [Fam.MSSetoid α] : MSSetoid (MapFam σ.IdxFam α) := inferInstance
 
 variable [R : MSSetoid α]
 
-@[simp]
 lemma interpret_equiv_iff (xs ys : α [^] σ) :
     xs ≈ ys ↔ ∀ (s : S) (v : σ.Idx s), xs.get s v ≈ ys.get s v := by
-  rfl
+  induction σ with
+  | nil => simp
+  | of s =>
+    constructor
+    · intro h s' v
+      cases v
+      exact h
+    · intro h
+      rw [←get_of s xs, ←get_of s ys]
+      exact h _ _
+  | prod σ τ hσ hτ =>
+    constructor
+    · intro h s v
+      cases v
+      · exact (hσ xs.1 ys.1).mp h.1 s _
+      · exact (hτ xs.2 ys.2).mp h.2 s _
+    · intro h
+      refine ⟨?_, ?_⟩
+      · exact (hσ xs.1 ys.1).mpr (fun s v ↦ h s (Idx.left v))
+      · exact (hτ xs.2 ys.2).mpr (fun s v ↦ h s (Idx.right v))
 
 @[simp]
 lemma interpret_equiv_iff' (xs ys : σ.IdxFam →ₛ α) :
@@ -478,6 +522,38 @@ lemma get_toQuot {σ : Signature S} (xs : α [^] σ) (s : S) (v : σ.Idx s) :
   simp only [toQuot, get_map]
   rfl
 
+lemma toQuot_eq {σ : Signature S} {x y : α [^] σ} : x.toQuot = y.toQuot ↔ x ≈ y := by
+  induction σ with
+  | nil => simp
+  | of _ => exact Quotient.eq
+  | prod σ₁ σ₂ h₁ h₂ =>
+    cases x
+    cases y
+    unfold toQuot
+    erw [map_prod, Prod.ext_iff, h₁, h₂]
+    rfl
+
+lemma toQuot_eq_iff_out {x : α [^] σ} {y : (α /ₛ R) [^] σ} :
+    x.toQuot = y ↔ x ≈ MSQuotient.out <$>ₛ y := by
+  induction σ with
+  | nil =>
+    simp only [mapClass_eq_map, Setoid.refl]
+  | of s =>
+    exact Quotient.mk_eq_iff_out
+  | prod σ₁ σ₂ h₁ h₂ =>
+    cases x
+    cases y
+    simp only [Prod.ext_iff]
+    exact and_congr h₁ h₂
+
+noncomputable example {σ τ : Signature S} {x : α [^] σ} {y : (α /ₛ R) [^] τ} :=
+  ((x, MSQuotient.out <$>ₛ y) : α [^] (σ ⨯ τ))
+
+lemma weird_needs_name {σ τ : Signature S} {x : α [^] σ} {y : (α /ₛ R) [^] τ} :
+    (x.toQuot, y) = Interpret.mapClass (MSQuotient.mk R) (σ := σ ⨯ τ) (x, MSQuotient.out <$>ₛ y) := by
+  rw [map_prod, ←comp_map, MSQuotient.out_eq, map_id]
+  rfl
+
 /--
 Multisorted analogue of Mathlib's `Quotient.finChoice`:
 turn a *tuple of quotients* into a *single quotient of representative tuples*.
@@ -486,13 +562,13 @@ Noncomputable: chooses representatives via `Quotient.out`.
 -/
 noncomputable def choice {σ : Signature S} (xs : (α /ₛ R) [^] σ) :
     Quotient (α := α[^]σ) instSetoidInterpret :=
-  ⟦fromGet ⟨fun s v => (xs.get s v).out⟩⟧
+  ⟦MSQuotient.out <$>ₛ xs⟧
 
 /-- `choice` inverts `toQuot` up to quotient equivalence. -/
 theorem choice_toQuot {σ : Signature S} (xs : α [^] σ) :
     choice (toQuot xs) = ⟦xs⟧ := by
   apply Quotient.sound
-  simp_all only [interpret_equiv_iff, fromGet_get, FamMap.mk_apply]
+  simp_all only [interpret_equiv_iff]
   intro s v
   simp_all only [toQuot, get_map]
   exact Quotient.exact (Quotient.out_eq _)
@@ -500,21 +576,16 @@ theorem choice_toQuot {σ : Signature S} (xs : α [^] σ) :
 /-- The representative from `choice` maps back to the original tuple of quotients. -/
 @[simp]
 theorem toQuot_out_choice {σ : Signature S} (xs : (α /ₛ R) [^] σ) :
-    toQuot (choice xs).out = xs := by
-  ext s v
-  have hrepr : (choice xs).out ≈
-      fromGet (σ := σ) (α := α) ⟨fun s v => (xs.get s v).out⟩ := by
-    exact
-      Quotient.exact (by simp only [choice, Quotient.out_eq])
-  have hcomp : (choice xs).out.get s v ≈ (xs.get s v).out := by
-    have hpoint :=
-      (interpret_equiv_iff
-          (choice xs).out
-          (fromGet ⟨fun s v => (xs.get s v).out⟩)).1
-        hrepr
-    simp_all only [interpret_equiv_iff, fromGet_get, FamMap.mk_apply, implies_true]
-  simp only [get_toQuot]
-  exact (Quotient.sound hcomp).trans (Quotient.out_eq _)
+    (choice xs).out.toQuot = xs := by
+  induction σ with
+  | nil => rfl
+  | of _ =>
+    simp [choice, Interpret.mapClass, map, FamMapClass.toFamMap, MSQuotient.out, toQuot,
+      MSQuotient.mk]
+  | prod σ τ hσ hτ =>
+    cases xs
+    rw [toQuot_eq_iff_out]
+    exact Quotient.eq_mk_iff_out.mp rfl
 
 end quotients
 
@@ -556,7 +627,7 @@ lemma get_comap
 @[simp] lemma comap_fromGet {X : Fam S} {σ τ : Signature S}
     (f : IdxFam τ →ₛ X) (g : SigMap σ τ) :
   (fromGet f).comap g = fromGet (f ∘ₛ g) := by
-  ext s v : 1
+  refine ext' (fun s v ↦ ?_)
   simp_all only [get_comap, fromGet_get, FamMap.comp_apply']
   rfl
 
@@ -597,13 +668,13 @@ def Interpret.EquivfromSigEquiv
   , invFun := fun ys => ys.comap (e : SigMap σ τ)
   , left_inv := by
       intro xs
-      ext s v : 1
+      refine ext' (fun s v ↦ ?_)
       rw [get_comap, get_comap]
       change xs.get s ((Fam.PerSortEquivLike.inv e) s (e s v)) = xs.get s v
       exact congrArg (fun x => xs.get s x) (Fam.PerSortEquivLike.inv_apply_apply e s v)
   , right_inv := by
       intro ys
-      ext s v : 1
+      refine ext' (fun s v ↦ ?_)
       rw [get_comap, get_comap]
       change ys.get s (e s ((Fam.PerSortEquivLike.inv e) s v)) = ys.get s v
       exact congrArg (fun x => ys.get s x) (Fam.PerSortEquivLike.apply_inv_apply e s v) }

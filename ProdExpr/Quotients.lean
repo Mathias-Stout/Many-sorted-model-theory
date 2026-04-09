@@ -44,8 +44,8 @@ class MSPrestructure (S : MSSetoid M) where
   rel_equiv :
       ∀ {σ : Signature Sorts} {r : L.Relations σ} (x y : M[^]σ),
         x ≈ y →
-          @RelMap Sorts L M toMSStructure σ r x =
-            @RelMap Sorts L M toMSStructure σ r y
+          (@RelMap Sorts L M toMSStructure σ r x ↔
+            @RelMap Sorts L M toMSStructure σ r y)
 
 variable {L} {S : MSSetoid M}
 variable [ps : L.MSPrestructure S]
@@ -65,7 +65,7 @@ instance quotientMSStructure : L.MSStructure (MSQuotient S) where
     exact
       Quotient.lift
         (fun y : M[^]σ => @RelMap Sorts L M ps.toMSStructure σ r y)
-        (fun x y hxy => ps.rel_equiv (r := r) x y hxy)
+        (fun x y hxy => propext <| ps.rel_equiv (r := r) x y hxy)
         (Interpret.choice (R := S) x)
 
 theorem funMap_eq {t} (f : L.Functions σ t) (x : MSQuotient S [^] σ) :
@@ -77,7 +77,7 @@ theorem funMap_eq {t} (f : L.Functions σ t) (x : MSQuotient S [^] σ) :
 theorem relMap_eq (r : L.Relations σ) (x : MSQuotient S [^] σ) :
   RelMap r x ↔ Quotient.lift
         (fun y : M[^]σ => @RelMap Sorts L M ps.toMSStructure σ r y)
-        (fun x y hxy => ps.rel_equiv (r := r) x y hxy)
+        (fun x y hxy => propext (ps.rel_equiv (r := r) x y hxy))
         (Interpret.choice (R := S) x) := by rfl
 
 variable (S)
@@ -92,14 +92,11 @@ theorem funMap_quotient_mk' {σ t} (f : L.Functions σ t) (x : M [^] σ) :
 
 theorem relMap_quotient_mk' {σ : Signature Sorts} (r : L.Relations σ) (x : M [^] σ) :
     (RelMap r (Interpret.toQuot (R := S) x)) ↔ @RelMap Sorts L M ps.toMSStructure σ r x := by
-  letI : MSSetoid M := S
-  rw [relMap_eq]
-  simp only [Interpret.choice_toQuot]
-  rfl
+  simp only [RelMap, Interpret.choice_toQuot, Quotient.lift_mk]
 
 theorem Term.realize_quotient_mk' {β : Fam Sorts} (t : L.Term β σ) (x : β →ₛ M) :
     (t.realize (MSQuotient.mk S ∘ₛ x)) =
-      Interpret.toQuot (R := S) (@Term.realize Sorts L M ps.toMSStructure β σ x t) := by
+      Interpret.toQuot (R := S) (@Term.realize _ _ M ps.toMSStructure _ _ x t) := by
   letI : MSSetoid M := S
   induction t with
   | var => rfl

@@ -849,7 +849,7 @@ theorem realize_relabel {β : Fam Sorts} {τ σ : Signature Sorts}
     · simp_all only [sumElim_eval_l, realize_varOf]
       rfl
     · simp_all only [sumElim_eval_r, FamMap.mk_apply, realize_var, get_left]
-  · ext s v_1 : 1
+  · refine Interpret.ext' (fun s v_1 ↦ ?_)
     simp_all only [get_comap, SigMap.incl_right_apply, get_right]
     rfl
 
@@ -932,7 +932,7 @@ theorem realize_closeVars {σ τ : Signature Sorts} {X : Fam Sorts}
   simp only [reindex_subst, reindex_rename, reindex_reindex, realize_subst, realize_rename,
     sumComp_elim, realize_reindex]
   congr!
-  ext s x
+  refine Interpret.ext' (fun s v_1 ↦ ?_)
   simp_all only [get_comap]
   rfl
 
@@ -1064,7 +1064,7 @@ theorem realize_restrictFreeVar [DecidableEq Sorts] [∀ s, DecidableEq (α s)]
   | @rel σ τ R ts =>
     simp only [restrictFreeVar, Realize]
     congr!
-    apply Interpret.ext
+    apply Interpret.ext'
     intro s i
     rw [realize_restrictVarLeft]
     · simp_all only [freeVarFinset, freeVarFinset.eq_3]
@@ -1308,7 +1308,7 @@ theorem realize_fully_instantiate {τ : Signature Sorts}
       φ.Realize v (t.realize (Fam.sumElim v (default : M[^]⦃⦄))) := by
   unfold fully_instantiate Formula.Realize
   rw[realize_instantiate, PUnit.default_eq_unit, realize_reindex]
-  congr!; ext; simp_all only [reduce_nil, get_comap]; rfl
+  congr!; refine Interpret.ext' (fun s v_1 ↦ ?_); simp_all only [reduce_nil, get_comap]; rfl
 
 @[simp]
 theorem realize_boundedFormula {ξ : Signature Sorts} {xs : M [^] ξ}
@@ -1461,7 +1461,7 @@ noncomputable def toTuple {φ : L.Formula α} (lf : φ.LocalForm) (M) (v : α �
 @[simp] lemma comap_fromGet {S : Type*} {X : Fam S} {σ τ : Signature S}
     (f : IdxFam τ →ₛ X) (g : SigMap σ τ) :
   (fromGet f).comap g = fromGet (f ∘ₛ g) := by
-  ext s v : 1
+  refine Interpret.ext' (fun s v_1 ↦ ?_)
   simp_all only [get_comap, fromGet_get, FamMap.comp_apply']
   rfl
 

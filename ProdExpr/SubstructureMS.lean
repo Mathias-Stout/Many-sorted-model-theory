@@ -351,7 +351,7 @@ theorem coe_closure_eq_range_term_realize (A: DepSet M) :
           exact (Classical.choose_spec (hx s i))
         let ts : L.Term A σ := (Term.varTerm σ).bind (fun s i => pre s i)
         have hts : ts.realize A.subtypeVal = x := by
-          apply Interpret.ext
+          apply Interpret.ext'
           intro s i
           calc
             (ts.realize A.subtypeVal).get s i =
@@ -899,7 +899,7 @@ def map (φ : M →[L] N) (S : L.Substructure M) : L.Substructure N where
         simp only [fromGet_get, y]
       simpa only [hy] using hpre_mem s i
     have hxy : (φ <$>ₛ y) = x := by
-      apply Interpret.ext
+      apply Interpret.ext'
       intro s i
       have hget' : (φ <$>ₛ y).get s i = φ s (y.get s i) := by
         simp_all only [DepSetLike.carrier_toDepSet, FamMap.mk_apply, fromGet_get, implies_true, get_map,
@@ -1190,7 +1190,7 @@ theorem realize_boundedFormula_top {α : Fam Sorts} {σ : Signature Sorts}
       exact congrArg (g <$>ₛ ·) h
     · intro h
       have hinj := fun s => g.toMSEmbedding.inj' s
-      exact Interpret.ext fun s i => hinj s (by
+      exact Interpret.ext' fun s i => hinj s (by
         have := congrArg (fun x => x.get s i) h
         simp only [Interpret.get_map] at this
         exact this)
@@ -1541,7 +1541,7 @@ def eqLocus (f g : M →[L] N) : L.Substructure M := by
       fun_mem := ?_ }
   intro σ t fn x hx
   have hfg : f <$>ₛ x = g <$>ₛ x := by
-    apply Interpret.ext
+    apply Interpret.ext'
     intro s i
     have hf' : (f <$>ₛ x).get s i = f s (x.get s i) := by
       simp_all only [Set.mem_setOf_eq, get_map, FamMap.comp_apply']
