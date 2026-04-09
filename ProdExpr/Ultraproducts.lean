@@ -239,7 +239,7 @@ variable [∀ a : ι, ∀ s, Nonempty (M a s)]
 theorem boundedFormula_realize {β : Fam Sorts} {σ : Signature Sorts} (φ : L.BoundedFormula β σ)
     (v : β →ₛ piFam M) (xs : piFam M [^] σ) :
   φ.Realize
-      (MSQuotient.mk (ReducedProductSetoid _ u.toFilter) ∘ₛ v)
+      (MSQuotient.mk _ ∘ₛ v)
       (xs.toQuot (R := (ReducedProductSetoid _ u.toFilter)))
     ↔ ∀ᶠ a in u.toFilter, φ.Realize ⟨fun s b ↦ v s b a⟩ (pi_lift xs a) := by
   induction φ with
@@ -260,14 +260,10 @@ theorem boundedFormula_realize {β : Fam Sorts} {σ : Signature Sorts} (φ : L.B
       rw [h]
       simp only [Term.realize_quotient_mk']
       rw [toQuot_eq, ←propext_iff]
-      congr
-      · simp only [piFam, Interpret, DFunLike.coe]
-        ext i
-        erw [←ReducedProduct.pi_lift_term_realize]
-        rfl
-      · simp only [piFam, Interpret, DFunLike.coe]
-        ext i
-        erw [←ReducedProduct.pi_lift_term_realize]
+      congr <;>
+        simp only [piFam, Interpret, DFunLike.coe] <;>
+        ext i <;>
+        erw [←ReducedProduct.pi_lift_term_realize] <;>
         rfl
     | prod τ₁ τ₂ h₁ h₂ =>
       cases t₁
@@ -299,8 +295,7 @@ theorem boundedFormula_realize {β : Fam Sorts} {σ : Signature Sorts} (φ : L.B
       change ¬φ.Realize _  ((MSQuotient.mk _) <$>ₛ(xs, pi_lift_inv _))
       erw [h]
       simp only [Filter.not_eventually, Ultrafilter.frequently_iff_eventually]
-      apply u.mem_of_superset U
-      intro a ha
+      refine u.mem_of_superset U (fun a ha ↦ ?_)
       simp only [Set.mem_setOf_eq, pi_lift]
       rw [pi_lift_LeftInverse]
       exact Classical.epsilon_spec ha
@@ -316,7 +311,8 @@ theorem formula_realize {β : Fam Sorts} (φ : L.Formula β) (v : β →ₛ piFa
 
 theorem sentence_realize (φ : L.Sentence) : Ultraproduct M u ⊨ φ ↔ ∀ᶠ a in u, M a ⊨ φ := by
   simp only [Sentence.Realize]
-  have : ∀ a, (default : EmptyFam →ₛ M a) = ⟨fun s b ↦ (default : EmptyFam →ₛ (piFam M)) s b a⟩ := by
+  have : ∀ a, (default : EmptyFam →ₛ M a)
+      = ⟨fun s b ↦ (default : EmptyFam →ₛ (piFam M)) s b a⟩ := by
     exact fun a ↦ Unique.default_eq _
   simp_rw [this, ←formula_realize φ]
   rw [←propext_iff]
