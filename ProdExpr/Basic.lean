@@ -1234,20 +1234,16 @@ def inducedStructureEquiv (e : M ≃ₛ N) : @MSLanguage.Equiv S L M N _ (induce
     map_fun' := @fun σ t f x => by
       change e.toFun t (funMap f x) = e t (funMap f (e.invFun <$>ₛ (e.toFun <$>ₛ x)))
       have h : (e.invFun <$>ₛ (e.toFun <$>ₛ x)) = x := by
-        apply Interpret.ext'
-        intro s
+        ext s a
         simp only [Interpret.get_map]
-        intro a
         exact e.left_inv' s (Interpret.get x s a)
       rw [h]
       rfl
     map_rel' := @fun σ  r x => by
       change RelMap r (e.invFun <$>ₛ (e.toFun <$>ₛ x)) ↔ RelMap r x
       have h : (e.invFun <$>ₛ (e.toFun <$>ₛ x)) = x := by
-        apply Interpret.ext'
-        intro s
+        ext s a
         simp only [Interpret.get_map]
-        intro a
         exact e.left_inv' s (Interpret.get x s a)
       rw [h] }
 

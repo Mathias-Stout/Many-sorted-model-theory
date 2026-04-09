@@ -107,7 +107,7 @@ lemma pi_lift_setoid {M : ι → Fam Sorts} {F : Filter ι} {σ : Signature Sort
   | of _ => exact h
   | prod _ _ h₁ h₂ =>
     apply F.mem_of_superset (F.inter_mem (h₁ h.1) (h₂ h.2)) (fun i h' ↦ ?_)
-    ext
+    apply Prod.ext
     · exact h'.1
     · exact h'.2
 

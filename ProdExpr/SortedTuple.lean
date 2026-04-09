@@ -417,7 +417,8 @@ def SortedMap (α : Fam.{v} S) (σ : Signature S) :=
 instance instCoeFam : Coe (σ.Interpret α) (σ.IdxFam →ₛ α) where
   coe := get
 
-lemma ext' {xs ys : σ.Interpret α} (h : ∀ (s : S) (v : σ.Idx s),
+@[ext]
+lemma ext {xs ys : σ.Interpret α} (h : ∀ (s : S) (v : σ.Idx s),
         xs.get s v = ys.get s v) : xs = ys := by
   induction σ
   case nil => simp_all only [reduce_nil, PUnit.default_eq_unit, implies_true]
@@ -447,7 +448,7 @@ lemma ext_iff' {xs ys : σ.Interpret α} :
     xs = ys ↔ ∀ (s : S) (v : σ.Idx s), xs.get s v = ys.get s v := by
   constructor
   · exact fun h s v ↦ by rw [h]
-  · exact ext'
+  · exact ext
 end instances
 
 section quotients
@@ -627,7 +628,7 @@ lemma get_comap
 @[simp] lemma comap_fromGet {X : Fam S} {σ τ : Signature S}
     (f : IdxFam τ →ₛ X) (g : SigMap σ τ) :
   (fromGet f).comap g = fromGet (f ∘ₛ g) := by
-  refine ext' (fun s v ↦ ?_)
+  ext s v
   simp_all only [get_comap, fromGet_get, FamMap.comp_apply']
   rfl
 
@@ -668,13 +669,13 @@ def Interpret.EquivfromSigEquiv
   , invFun := fun ys => ys.comap (e : SigMap σ τ)
   , left_inv := by
       intro xs
-      refine ext' (fun s v ↦ ?_)
+      ext s v
       rw [get_comap, get_comap]
       change xs.get s ((Fam.PerSortEquivLike.inv e) s (e s v)) = xs.get s v
       exact congrArg (fun x => xs.get s x) (Fam.PerSortEquivLike.inv_apply_apply e s v)
   , right_inv := by
       intro ys
-      refine ext' (fun s v ↦ ?_)
+      ext s v
       rw [get_comap, get_comap]
       change ys.get s (e s ((Fam.PerSortEquivLike.inv e) s v)) = ys.get s v
       exact congrArg (fun x => ys.get s x) (Fam.PerSortEquivLike.apply_inv_apply e s v) }

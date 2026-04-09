@@ -91,8 +91,7 @@ theorem map_formula {α} (f : M ↪ₑ[L] N)
   let φ_loc := φ.localize
   rw[φ_loc.realize_toBoundedFormula x, φ_loc.realize_toBoundedFormula ((f: M →ₛ N) ∘ₛ x)]
   have hmap : φ_loc.toTuple N (f ∘ₛ x) = f <$>ₛ (φ_loc.toTuple M x) := by
-    apply Interpret.ext'
-    intro s v
+    ext s v
     rename_i this_1
     simp_all only [LocalForm.get_toTuple, mapClass_eq_map, this_1, this, φ_loc]
     change (φ.localize.comap N (↑f ∘ₛ x)) s v = ((↑f) <$>ₛ (φ.localize.toTuple M x)).get s v
@@ -116,7 +115,7 @@ theorem map_boundedFormula {α} (f : M ↪ₑ[L] N) {σ : Signature Sorts}
     simp only [PUnit.default_eq_unit, reduce_nil, realize_reindex, comap, SigEquiv.nilLeft,
       reduce_nil, SigEquiv.symm]
     congr!
-    refine Interpret.ext' (fun s w ↦ ?_)
+    ext s w
     simp_all only [reduce_nil, fromGet_get]; rfl
   have hN :
       ψ.Realize (Fam.sumElim (f ∘ₛ v) (f <$>ₛ xs).get) default ↔ φ.Realize (f ∘ₛ v) (f <$>ₛ xs) :=
@@ -125,7 +124,7 @@ theorem map_boundedFormula {α} (f : M ↪ₑ[L] N) {σ : Signature Sorts}
     simp only [PUnit.default_eq_unit, reduce_nil, realize_reindex, comap, SigEquiv.nilLeft,
       reduce_nil, SigEquiv.symm]
     congr!
-    refine Interpret.ext' (fun s w ↦ ?_)
+    ext s w
     simp_all only [reduce_nil, fromGet_get]; rfl
   have hmap :
       ψ.Realize (Fam.sumElim (f ∘ₛ v) (f <$>ₛ xs).get) default ↔
@@ -190,7 +189,7 @@ theorem map_fun (f : M ↪ₑ[L] N) {σ : Signature Sorts} {t : Sorts}
     | .left i' => x.get s' i'
     | .right .var => funMap fn x⟩
   have hvArgs : fromGet ⟨fun s i => v s (.left i)⟩ = x := by
-    refine Interpret.ext' (fun s w ↦ ?_)
+    ext s w
     simp [v, fromGet_get]
   have hv : φ.Realize v := by
     have : v t (.right .var) = funMap fn (fromGet ⟨fun s i => v s (.left i)⟩) := by
@@ -207,7 +206,7 @@ theorem map_fun (f : M ↪ₑ[L] N) {σ : Signature Sorts} {t : Sorts}
     _ = funMap fn (fromGet ⟨fun s i => ((f : M →ₛ N) ∘ₛ v) s (.left i)⟩) := hN'
     _ = funMap fn (f <$>ₛ x) := by
       congr 1
-      refine Interpret.ext' (fun s w ↦ ?_)
+      ext s w
       simp only [Fam.FamMap.comp_apply', Fam.FamMap.mk_apply, fromGet_get, get_map, v]
 
 /-- An elementary embedding preserves and reflects relation symbols. -/
@@ -216,13 +215,11 @@ theorem map_rel (f : M ↪ₑ[L] N) {σ : Signature Sorts}
     RelMap r (f <$>ₛ x) ↔ RelMap r x := by
   let φ : L.Formula σ.IdxFam := r.formula (Term.varTerm σ)
   have hFromGet : fromGet x.get = x := by
-    apply Interpret.ext'
-    intro s i
+    ext s i
     simp only [fromGet_get]
   have hMapGet :
       fromGet ((f : M →ₛ N) ∘ₛ x.get) = (f <$>ₛ x) := by
-    apply Interpret.ext'
-    intro s i
+    ext s i
     have hget : (f <$>ₛ x).get s i = f s (x.get s i) := by
       simp_all only [get_fromGet, get_map, Fam.FamMap.comp_apply']
       rfl
@@ -351,8 +348,7 @@ lemma comap_assocR
       (⟨xs.1.1, ⟨xs.1.2, xs.2⟩⟩ : X[^](σ ⨯ (τ ⨯ η))) := by
   let fAssoc := Signature.SigMap.assocR (S := Sorts) σ τ η
   apply Prod.ext
-  · apply Interpret.ext'
-    intro s iσ
+  · ext s iσ
     have hget := congrArg
       (fun g => g s (Signature.Idx.left iσ))
       (Signature.get_comap (xs := xs) (f := fAssoc))
@@ -370,8 +366,7 @@ lemma comap_assocR
       _ = xs.1.1.get s iσ := by
             simp [get_left]
   · apply Prod.ext
-    · apply Interpret.ext'
-      intro s iτ
+    · ext s iτ
       have hget := congrArg
         (fun g => g s (Signature.Idx.right (Signature.Idx.left iτ)))
         (Signature.get_comap (xs := xs) (f := fAssoc))
@@ -396,8 +391,7 @@ lemma comap_assocR
               simp [fAssoc, SigMap.assocR]
         _ = xs.1.2.get s iτ := by
               simp [get_left, get_right]
-    · apply Interpret.ext'
-      intro s iη
+    · ext s iη
       have hget := congrArg
         (fun g => g s (Signature.Idx.right (Signature.Idx.right iη)))
         (Signature.get_comap (xs := xs) (f := fAssoc))
@@ -455,7 +449,7 @@ def ElementaryEmbedding.ofModelsElementaryDiagram (N : Fam Sorts) [L.MSStructure
     congr!
     simp_all only [Theory.model_iff, mem_completeTheory, constantsOn_Functions,
       constantsOnFunc.eq_1, Term.realize_bind,  Term.realize_varterm, t]
-    refine Interpret.ext' (fun s w ↦ ?_)
+    ext s w
     simp_all only [constantsOn_Functions, constantsOnFunc.eq_1, get_map, Fam.FamMap.comp_apply',
       Fam.FamMap.mk_apply, Term.realize_constants, fromGet_get, Fam.coeFun_apply, evalConst,
       constantsInr]
@@ -465,7 +459,7 @@ def ElementaryEmbedding.ofModelsElementaryDiagram (N : Fam Sorts) [L.MSStructure
     congr!
     simp_all only [Theory.model_iff, mem_completeTheory, constantsOn_Functions,
       constantsOnFunc.eq_1, Term.realize_bind, Term.realize_varterm, t]
-    refine Interpret.ext' (fun s w ↦ ?_)
+    ext s w
     simp_all only [fromGet_get]
     rfl
   ⟩
@@ -479,8 +473,7 @@ theorem map_tuple_injective
   Function.Injective (fun xs : M [^] σ => f <$>ₛ xs) := by
   intro xs ys h
   -- ext on tuples, reduce to ext on `get`
-  apply Interpret.ext'
-  intro s i
+  ext s i
   -- compare components after applying `f`
   have : f s (xs.get s i) = f s (ys.get s i) := by
     -- use `h : f <$>ₛ xs = f <$>ₛ ys`
