@@ -97,7 +97,8 @@ lemma pi_lift_RightInverse (σ : Signature Sorts) :
   | prod σ₁ σ₂ h₁ h₂ =>
     simp [pi_lift, pi_lift_inv, h₁, h₂]
 
-lemma pi_lift_setoid {M : ι → Fam Sorts} {F : Filter ι} {σ : Signature Sorts} {xs ys : (piFam M) [^] σ}
+lemma pi_lift_setoid {M : ι → Fam Sorts} {F : Filter ι} {σ : Signature Sorts}
+  {xs ys : (piFam M) [^] σ}
   (h :
     letI : MSSetoid (piFam M) := ReducedProductSetoid M F
     xs ≈ ys) : (F.productSetoid (fun i ↦ M i [^] σ) (pi_lift xs) (pi_lift ys) : Prop) := by
@@ -175,7 +176,7 @@ instance prestructure :
 
 lemma pi_lift_term_realize {σ τ : Signature Sorts} {β : Fam Sorts} {u : Ultrafilter ι}
     (v : β →ₛ piFam M) (xs : piFam M [^] τ)
-    (ts : L.Term (β ⊕ₛ τ.IdxFam) σ) (i : ι):
+    (ts : L.Term (β ⊕ₛ τ.IdxFam) σ) (i : ι) :
   pi_lift (@Term.realize _ _ _ (prestructure M u).toMSStructure _ _ (sumElim v xs.get) ts) i =
     Term.realize (sumElim { toFun := fun s b ↦ v s b i } (pi_lift xs i).get) ts := by
   induction ts with
@@ -223,8 +224,8 @@ instance instPiFamStructure : L.MSStructure (piFam M) :=
     iff they're equal componentwise (which means eventually equal pointwise). -/
 theorem ultraproduct_interpret_eq_iff {σ : Signature Sorts}
     (x y : (piFam M) [^] σ) :
-    Interpret.toQuot (R := ReducedProductSetoid M (u : Filter ι)) x =
-    Interpret.toQuot (R := ReducedProductSetoid M (u : Filter ι)) y ↔
+    x.toQuot (R := ReducedProductSetoid M (u : Filter ι))  =
+    y.toQuot (R := ReducedProductSetoid M (u : Filter ι)) ↔
     ∀ s (v : σ.Idx s), ∀ᶠ a in u, x.get s v a = y.get s v a := by
   simp only [Interpret.ext_iff', Interpret.get_toQuot]
   constructor
