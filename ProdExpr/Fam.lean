@@ -357,16 +357,14 @@ notation "Πₛ[" f "]" => Section.pi f
 variable {base : Type u} {M : Fam.{v} base} {N : Fam.{w} base}
 
 /-- A many-sorted setoid is a family of setoids, one for each sort. -/
-structure MSSetoid (M : Fam.{v} base) where
+class MSSetoid (M : Fam.{v} base) where
   /-- The family of setoid structures. -/
   toSetoid : ∀ s, Setoid (M s)
-
-attribute [class] MSSetoid
 
 instance [S : MSSetoid M] (s : base) : Setoid (M s) := S.toSetoid s
 
 instance : CoeFun (MSSetoid M) (fun _ => ∀ s, Setoid (M s)) where
-  coe := MSSetoid.toSetoid
+  coe S := S.toSetoid
 
 instance MSSetoid.piSetoid (S : MSSetoid M) : Setoid ((s : base) → M s) := inferInstance
 
@@ -433,6 +431,12 @@ theorem MSQuotient.map_comp_mk {S : MSSetoid M} {R : MSSetoid N} (f : M →ₛ N
   ext s x
   rfl
 
+noncomputable def MSQuotient.out {S : MSSetoid M} : (M /ₛ S) →ₛ M :=
+  ⟨fun _ ↦ Quotient.out⟩
+
+lemma MSQuotient.out_eq {S : MSSetoid M} : MSQuotient.mk S ∘ₛ MSQuotient.out (S := S) = FamMap.idₛ := by
+  ext s x
+  simp [mk, out]
 
 /-- Given a class of functions `q : @MQuotient (∀ i, α i) _`, returns the class of `i`-th projection
 `Section (MSQuotient (S i))`. -/
