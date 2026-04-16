@@ -21,7 +21,7 @@ namespace MSLanguage
 open MSStructure Cardinal Fam
 
 variable {Sorts : Type z} (L : MSLanguage.{u, v, z} Sorts) (L' : MSLanguage.{u', v', z} Sorts)
-variable {M : Sorts → Type w} [L.MSStructure M]
+variable {M : Fam.{w} Sorts} [L.MSStructure M]
 
 
 variable (σ : Signature Sorts)
@@ -45,7 +45,8 @@ namespace LHom
 variable (ϕ : L →ᴸ L')
 
 /-- Pulls a structure back along a language map. -/
-def reduct (M : Sorts → Type*) [L'.MSStructure M] : L.MSStructure M where
+@[reducible]
+def reduct (M : Fam Sorts) [L'.MSStructure M] : L.MSStructure M where
   funMap f xs := funMap (ϕ.onFunction f) xs
   RelMap r xs := RelMap (ϕ.onRelation r) xs
 
@@ -165,11 +166,12 @@ protected structure Injective : Prop where
 
 /-- Pulls an `L`-structure along a language map `ϕ : L →ᴸ L'`, and then expands it
   to an `L'`-structure arbitrarily. -/
+@[reducible]
 noncomputable def defaultExpansion (ϕ : L →ᴸ L')
     [∀ (σ t) (f : L'.Functions σ t),
     Decidable (f ∈ Set.range fun f : L.Functions σ t => onFunction ϕ f)]
     [∀ (σ) (r : L'.Relations σ), Decidable (r ∈ Set.range fun r : L.Relations σ => onRelation ϕ r)]
-    (M : Sorts → Type*) [∀ s, Inhabited (M s)] [L.MSStructure M] : L'.MSStructure M where
+    (M : Fam Sorts) [∀ s, Inhabited (M s)] [L.MSStructure M] : L'.MSStructure M where
   funMap {σ t} f xs :=
     if h' : f ∈ Set.range fun f : L.Functions σ t => onFunction ϕ f then funMap h'.choose xs
     else default
@@ -179,7 +181,7 @@ noncomputable def defaultExpansion (ϕ : L →ᴸ L')
 
 /-- A language homomorphism is an expansion on a structure if it commutes with the interpretation of
 all symbols on that structure. -/
-class IsExpansionOn (M : Sorts → Type*) [L.MSStructure M] [L'.MSStructure M] : Prop where
+class IsExpansionOn (M : Fam Sorts) [L.MSStructure M] [L'.MSStructure M] : Prop where
   map_onFunction :
     ∀ {σ t} (f : L.Functions σ t) (x : M [^] σ),
     funMap (ϕ.onFunction f) x = funMap f x := by
@@ -189,37 +191,45 @@ class IsExpansionOn (M : Sorts → Type*) [L.MSStructure M] [L'.MSStructure M] :
       exact fun {n} => isEmptyElim
 
 @[simp]
-theorem map_onFunction {M : Sorts → Type*} [L.MSStructure M] [L'.MSStructure M]
+theorem map_onFunction {M : Fam Sorts} [L.MSStructure M] [L'.MSStructure M]
     [ϕ.IsExpansionOn M] {σ} {t} (f : L.Functions σ t) (x : M [^] σ) :
     funMap (ϕ.onFunction f) x = funMap f x := IsExpansionOn.map_onFunction f x
 
 @[simp]
-theorem map_onRelation {M : Sorts → Type*} [L.MSStructure M] [L'.MSStructure M]
+theorem map_onRelation {M : Fam Sorts} [L.MSStructure M] [L'.MSStructure M]
     [ϕ.IsExpansionOn M] {σ} (R : L.Relations σ) (x : M [^] σ) :
     RelMap (ϕ.onRelation R) x = RelMap R x := IsExpansionOn.map_onRelation R x
 
-instance id_isExpansionOn (M : Sorts → Type*) [L.MSStructure M] : IsExpansionOn (LHom.id L) M :=
+instance id_isExpansionOn (M : Fam Sorts) [L.MSStructure M] : IsExpansionOn (LHom.id L) M :=
   ⟨fun _ _ => rfl, fun _ _ => rfl⟩
 
-instance ofIsEmpty_isExpansionOn (M : Sorts → Type*) [L.MSStructure M] [L'.MSStructure M]
+instance ofIsEmpty_isExpansionOn (M : Fam Sorts) [L.MSStructure M] [L'.MSStructure M]
     [L.IsAlgebraic] [L.IsRelational] : IsExpansionOn (LHom.ofIsEmpty L L') M where
 
 
-instance sumElim_isExpansionOn {L'' : MSLanguage Sorts} (ψ : L'' →ᴸ L') (M : Sorts → Type*)
+instance sumElim_isExpansionOn {L'' : MSLanguage Sorts} (ψ : L'' →ᴸ L') (M : Fam Sorts)
     [L.MSStructure M] [L'.MSStructure M] [L''.MSStructure M]
     [ϕ.IsExpansionOn M] [ψ.IsExpansionOn M] : (ϕ.sumElim ψ).IsExpansionOn M :=
-  ⟨fun f _xs => Sum.casesOn f (by simp) (by simp), fun R _ => Sum.casesOn R (by simp) (by simp)⟩
+  ⟨fun f _xs => Sum.casesOn f (by simp only [sumElim_onFunction, Sum.elim_inl, map_onFunction,
+    funMap_sumInl, implies_true]) (by simp only [sumElim_onFunction, Sum.elim_inr, map_onFunction,
+      funMap_sumInr, implies_true]), fun R _ => Sum.casesOn R (by simp only [sumElim_onRelation,
+    Sum.elim_inl, map_onRelation, relMap_sumInl, implies_true]) (by simp only [sumElim_onRelation,
+    Sum.elim_inr, map_onRelation, relMap_sumInr, implies_true])⟩
 
-instance sumMap_isExpansionOn {L₁ L₂ : MSLanguage Sorts} (ψ : L₁ →ᴸ L₂) (M : Sorts → Type*)
+instance sumMap_isExpansionOn {L₁ L₂ : MSLanguage Sorts} (ψ : L₁ →ᴸ L₂) (M : Fam Sorts)
     [L.MSStructure M] [L'.MSStructure M] [L₁.MSStructure M] [L₂.MSStructure M]
     [ϕ.IsExpansionOn M] [ψ.IsExpansionOn M] : (ϕ.sumMap ψ).IsExpansionOn M :=
-  ⟨fun f _ => Sum.casesOn f (by simp) (by simp), fun R _ => Sum.casesOn R (by simp) (by simp)⟩
+  ⟨fun f _ => Sum.casesOn f (by simp only [sumMap_onFunction, Sum.map_inl, funMap_sumInl,
+    map_onFunction, implies_true]) (by simp only [sumMap_onFunction, Sum.map_inr, funMap_sumInr,
+      map_onFunction, implies_true]), fun R _ => Sum.casesOn R (by simp only [sumMap_onRelation,
+    Sum.map_inl, relMap_sumInl, map_onRelation, implies_true]) (by simp only [sumMap_onRelation,
+    Sum.map_inr, relMap_sumInr, map_onRelation, implies_true])⟩
 
-instance sumInl_isExpansionOn (M : Sorts → Type*) [L.MSStructure M] [L'.MSStructure M] :
+instance sumInl_isExpansionOn (M : Fam Sorts) [L.MSStructure M] [L'.MSStructure M] :
     (LHom.sumInl : L →ᴸ L.sum L').IsExpansionOn M :=
   ⟨fun _f _ => rfl, fun _R _ => rfl⟩
 
-instance sumInr_isExpansionOn (M : Sorts → Type*) [L.MSStructure M] [L'.MSStructure M] :
+instance sumInr_isExpansionOn (M : Fam Sorts) [L.MSStructure M] [L'.MSStructure M] :
     (LHom.sumInr : L' →ᴸ L.sum L').IsExpansionOn M :=
   ⟨fun _f _ => rfl, fun _R _ => rfl⟩
 
@@ -243,7 +253,7 @@ theorem sumInl_injective : (LHom.sumInl : L →ᴸ L.sum L').Injective :=
 theorem sumInr_injective : (LHom.sumInr : L' →ᴸ L.sum L').Injective :=
   ⟨fun h => Sum.inr_injective h, fun h => Sum.inr_injective h⟩
 
-instance (priority := 100) isExpansionOn_reduct (ϕ : L →ᴸ L') (M : Sorts → Type*)
+instance (priority := 100) isExpansionOn_reduct (ϕ : L →ᴸ L') (M : Fam Sorts)
     [L'.MSStructure M] :  @IsExpansionOn Sorts L L' ϕ M (ϕ.reduct M) _ :=
   letI := ϕ.reduct M
   ⟨fun _f _ => rfl, fun _R _ => rfl⟩
@@ -252,7 +262,7 @@ theorem Injective.isExpansionOn_default {ϕ : L →ᴸ L'}
     [∀ (σ t) (f : L'.Functions σ t),
     Decidable (f ∈ Set.range fun f : L.Functions σ t => ϕ.onFunction f)]
     [∀ (σ) (r : L'.Relations σ), Decidable (r ∈ Set.range fun r : L.Relations σ => ϕ.onRelation r)]
-    (h : ϕ.Injective) (M : Sorts → Type*) [∀ s, Inhabited (M s)] [L.MSStructure M] :
+    (h : ϕ.Injective) (M : Fam Sorts) [∀ s, Inhabited (M s)] [L.MSStructure M] :
     @IsExpansionOn Sorts L L' ϕ M _ (ϕ.defaultExpansion M) := by
   letI := ϕ.defaultExpansion M
   refine ⟨fun {σ t} f xs => ?_, fun {σ} r xs => ?_⟩
@@ -305,7 +315,7 @@ end LEquiv
 
 section ConstantsOn
 
-variable (α : Sorts → Type u')
+variable (α : Fam.{u'} Sorts)
 
 /-- The type of functions for a Multisorted language consisting only of constant symbols. -/
 @[simp]
@@ -346,16 +356,17 @@ instance isRelational_constantsOn [_ie : ∀ t, IsEmpty (α t)] : IsRelational (
 -- TODO: prove this
 /-
 theorem card_constantsOn : (constantsOn α).card = #(Σ s, (α s)) := by
-  simp [card_eq_card_functions_add_card_relations, sum_nat_eq_add_sum_succ]
+  simp? [card_eq_card_functions_add_card_relations, sum_nat_eq_add_sum_succ]
 -/
 
 /-- Gives a `constantsOn α` structure to a type by assigning each constant a value. -/
+@[reducible]
 def constantsOn.structure (f : α →ₛ M) : (constantsOn α).MSStructure M where
   funMap := fun {σ} {t} c _ =>
     match σ, c with
     | .nil, c => (f t) c
 
-variable {β : Sorts → Type v'}
+variable {β : Fam.{v'} Sorts}
 
 /-- A map between index types induces a map between constant languages. -/
 def LHom.constantsOnMap (f : α →ₛ β) : constantsOn α →ᴸ constantsOn β where
@@ -404,7 +415,7 @@ variable (L)
 
 section
 
-variable (α : Sorts → Type w')
+variable (α : Fam.{w'} Sorts)
 
 /-- Extends a language with a constant for each element of a parameter set in `M`. -/
 def withConstants : MSLanguage.{max u w', v} Sorts :=
@@ -412,7 +423,6 @@ def withConstants : MSLanguage.{max u w', v} Sorts :=
 
 @[inherit_doc MSFirstOrder.MSLanguage.withConstants]
 scoped[MSFirstOrder] notation:95 L "[[" α "]]" => MSLanguage.withConstants L α
-
 
 /- TODO: prove this
 @[simp]
@@ -442,11 +452,11 @@ def LHom.addConstants {L' : MSLanguage Sorts} (φ : L →ᴸ L') : L[[α]] →�
   φ.sumMap (LHom.id _)
 
 /-- Structure from constants. -/
-instance paramsStructure (A : (s : Sorts) → Set (α s)) :
-    -- elaborate A so that lean coerces it to a map Sorts → Type w'
-    (constantsOn (fun s => A s : Sorts → Type w')).MSStructure α :=
+instance paramsStructure (A : DepSet α) :
+    -- elaborate A so that lean coerces it to a map Fam.{w} Sorts
+    (constantsOn A).MSStructure α :=
   -- again, Lean does the coercions for us, at the cost of some elaboration
-  constantsOn.structure (fun _ => fun a => a)
+  constantsOn.structure A.subtypeVal
 
 variable (L)
 
@@ -455,12 +465,24 @@ variable (L)
 def LEquiv.addEmptyConstants [ie : ∀ s, IsEmpty (α s)] : L ≃ᴸ L[[α]] where
   toLHom := lhomWithConstants L α
   invLHom := LHom.sumElim (LHom.id L) (LHom.ofIsEmpty (constantsOn α) L)
-  left_inv := by rw [lhomWithConstants, LHom.sumElim_comp_inl]
+  left_inv := by
+    simp only [lhomWithConstants]
+    exact LHom.sumElim_comp_inl _ _
   right_inv := by
-    simp only [LHom.comp_sumElim, lhomWithConstants, LHom.comp_id]
-    exact _root_.trans (congr rfl (Subsingleton.elim _ _)) LHom.sumElim_inl_inr
+    simp only [lhomWithConstants]
+    apply LHom.funext
+    · funext σ t f
+      cases f with
+      | inl f => rfl
+      | inr f =>
+        haveI : IsRelational (constantsOn α) := inferInstance
+        exact (this σ t).elim f
+    · funext σ r
+      cases r with
+      | inl r => rfl
+      | inr r => exact r.elim
 
-variable {α} {β : Sorts → Type*}
+variable {α} {β : Fam Sorts}
 
 @[simp]
 theorem withConstants_funMap_sumInl [L[[α]].MSStructure M] [(lhomWithConstants L α).IsExpansionOn M]
@@ -476,18 +498,18 @@ theorem withConstants_relMap_sumInl [L[[α]].MSStructure M] [(lhomWithConstants 
   (lhomWithConstants L α).map_onRelation R x
 
 /-- The language map extending the constant set. -/
-def lhomWithConstantsMap (f : famMap α β) : L[[α]] →ᴸ L[[β]] :=
+def lhomWithConstantsMap (f : α →ₛ β) : L[[α]] →ᴸ L[[β]] :=
   LHom.sumMap (LHom.id L) (LHom.constantsOnMap f)
 
 @[simp]
-theorem LHom.map_constants_comp_sumInl {f : famMap α β} :
+theorem LHom.map_constants_comp_sumInl {f : α →ₛ β} :
     (L.lhomWithConstantsMap f).comp LHom.sumInl = L.lhomWithConstants β := by ext <;> rfl
 end
 
-open MSFirstOrder
+open MSFirstOrder Fam FamMap
 
 instance constantsOnSelfStructure : (constantsOn M).MSStructure M :=
-  constantsOn.structure (fun _ => id)
+  constantsOn.structure idₛ
 
 instance withConstantsSelfStructure : L[[M]].MSStructure M :=
   MSLanguage.sumStructure _ _ M
@@ -495,7 +517,10 @@ instance withConstantsSelfStructure : L[[M]].MSStructure M :=
 instance withConstants_self_expansion : (lhomWithConstants L M).IsExpansionOn M :=
   ⟨fun _ _ => rfl, fun _ _ => rfl⟩
 
-variable (α : Sorts → Type*) [(constantsOn α).MSStructure M]
+variable (α : Fam Sorts) [(constantsOn α).MSStructure M]
+
+instance constantsOnEmptyStructure : (constantsOn EmptyFam).MSStructure M :=
+  ⟨default, default⟩
 
 instance withConstantsStructure : L[[α]].MSStructure M :=
   MSLanguage.sumStructure _ _ _
@@ -504,11 +529,12 @@ instance withConstants_expansion : (L.lhomWithConstants α).IsExpansionOn M :=
   ⟨fun _ _ => rfl, fun _ _ => rfl⟩
 
 instance addEmptyConstants_is_expansion_on' :
-    (LEquiv.addEmptyConstants L (fun s => (∅ : Set (M s)))).toLHom.IsExpansionOn M :=
+    (LEquiv.addEmptyConstants L EmptyFam).toLHom.IsExpansionOn M :=
   L.withConstants_expansion _
 
+
 instance addEmptyConstants_symm_isExpansionOn :
-    (LEquiv.addEmptyConstants L (fun s => (∅ : Set (M s)))).symm.toLHom.IsExpansionOn M :=
+  (LEquiv.addEmptyConstants L (∅: DepSet M)).symm.toLHom.IsExpansionOn M :=
   LHom.sumElim_isExpansionOn _ _ _
 
 instance addConstants_expansion {L' : MSLanguage Sorts} [L'.MSStructure M] (φ : L →ᴸ L')
@@ -523,20 +549,20 @@ theorem withConstants_funMap_sumInr {s : Sorts} {a : α s} {x : Signature.nil.In
   exact (LHom.sumInr : constantsOn α →ᴸ L.sum _).map_onFunction _ _
 
 
-variable {α} (A : (s : Sorts) → Set (M s))
+variable {α} (A : DepSet M)
 
 @[simp]
-theorem coe_con {s : Sorts} {a : A s} : (L.con (α := fun s => A s) s a : M s) = a :=
+theorem coe_con {s : Sorts} {a : A s} : (L.con (α := A) s a : M s) = a :=
   rfl
 
-variable {A} {B : (s : Sorts) → Set (M s)} (h : ∀ s, A s ⊆ B s)
+variable {A} {B : DepSet M} (h : A ⊆ B)
 
 instance constantsOnMap_inclusion_isExpansionOn :
-    (LHom.constantsOnMap (fun s => Set.inclusion (h s))).IsExpansionOn M :=
+    (LHom.constantsOnMap (DepSet.inclusion h)).IsExpansionOn M :=
   constantsOnMap_isExpansionOn rfl
 
 instance map_constants_inclusion_isExpansionOn :
-    (L.lhomWithConstantsMap (fun s => Set.inclusion (h s))).IsExpansionOn M :=
+    (L.lhomWithConstantsMap (DepSet.inclusion h)).IsExpansionOn M :=
   LHom.sumMap_isExpansionOn _ _ _
 
 end WithConstants

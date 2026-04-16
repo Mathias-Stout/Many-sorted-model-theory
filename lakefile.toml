@@ -2,6 +2,7 @@ name = "many-sorted-model-theory"
 version = "0.1.0"
 keywords = ["math"]
 defaultTargets = ["MultisortedLogic"]
+lintDriver = "batteries/runLinter"
 
 [leanOptions]
 pp.unicode.fun = true # pretty-prints `fun a ↦ b`
