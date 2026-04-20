@@ -6,34 +6,33 @@ universe u v w u' w' v' z
 namespace MSFirstOrder
 
 variable {Sorts : Type z} {L : MSLanguage.{u, v, z} Sorts} {L' : MSLanguage Sorts}
-variable {M : Fam.{w} Sorts} {N P : Fam Sorts} [i: L.MSStructure M] [L.MSStructure N] [L.MSStructure P]
-variable {α : Fam.{u'} Sorts} {β : Fam.{v'} Sorts} {γ : Fam Sorts}
-variable {σ ξ η : Signature Sorts}
-variable {s : Sorts} {t : Sorts}
+  {M : Fam.{w} Sorts} {N P : Fam Sorts} [L.MSStructure M] [L.MSStructure N] [L.MSStructure P]
+  {α : Fam.{u'} Sorts} {β : Fam.{v'} Sorts} {γ : Fam Sorts}
+  {σ ξ η : Signature Sorts}
+  {s : Sorts} {t : Sorts}
 
 
 namespace MSLanguage
 open Signature Interpret
 
-#check FirstOrder.Language
 
 namespace BoundedFormula
 
 
 /-- Atomic formulas -/
 inductive IsAtomic : L.BoundedFormula α σ → Prop
-  | equal {ξ } (t₁ t₂ : L.Term (α ⊕ₛ σ.IdxFam) ξ) : IsAtomic (t₁.bdEqual t₂)
-  | rel {ξ} (R : L.Relations ξ) (ts : L.Term (α ⊕ₛ σ.IdxFam) ξ) :
+  | equal {ξ : Signature Sorts} (t₁ t₂ : L.Term (α ⊕ₛ σ.IdxFam) ξ) : IsAtomic (t₁.bdEqual t₂)
+  | rel {ξ : Signature Sorts} (R : L.Relations ξ) (ts : L.Term (α ⊕ₛ σ.IdxFam) ξ) :
     IsAtomic (R.boundedFormula ts)
 
-/-- Quantifier-free formulas-/
+/-- Quantifier-free formulas -/
 inductive IsQF : {σ : Signature Sorts} → L.BoundedFormula α σ → Prop
   | falsum : IsQF falsum
   | of_isAtomic {φ} (h : IsAtomic φ) : IsQF φ
   | imp {φ₁ φ₂} (h₁ : IsQF φ₁) (h₂ : IsQF φ₂) : IsQF (φ₁.imp φ₂)
   /-- dummy quantification case-/
-  | all {ξ} {σ} {φ : L.BoundedFormula α (σ ⨯ ξ)} (hφ : IsQF φ) (hξ : ξ.fromSorts ∅) :
-    IsQF φ.all
+  | all {ξ : Signature Sorts} {σ} {φ : L.BoundedFormula α (σ ⨯ ξ)} (hφ : IsQF φ)
+    (hξ : ξ.fromSorts ∅) : IsQF φ.all
 
 /-- Quantifier-free formulas, except over Sorts R ⊆ Sorts -/
 inductive IsQFRelTo (R : Set Sorts) :
@@ -41,10 +40,11 @@ inductive IsQFRelTo (R : Set Sorts) :
   | falsum : IsQFRelTo R falsum
   | of_isAtomic {φ} (h : IsAtomic φ) : IsQFRelTo R φ
   | imp {φ₁ φ₂} (h₁ : IsQFRelTo R φ₁) (h₂ : IsQFRelTo R φ₂) : IsQFRelTo R (φ₁.imp φ₂)
-  | all {ξ} {σ} {φ : L.BoundedFormula α (σ ⨯ ξ)} (hφ : IsQFRelTo R φ) (hξ : ξ.fromSorts R) :
-    IsQFRelTo R φ.all
+  | all {ξ σ : Signature Sorts} {φ : L.BoundedFormula α (σ ⨯ ξ)} (hφ : IsQFRelTo R φ)
+    (hξ : ξ.fromSorts R) : IsQFRelTo R φ.all
 
-/-TODO: we need to allow dummy quantification over empty tuples in IsQF if we want this equivalence to hold -/
+/-TODO: we need to allow dummy quantification over empty tuples in IsQF if we want this
+equivalence to hold -/
 lemma isQF_iff_isQFRelTo_empty (φ : L.BoundedFormula α σ) : IsQF φ ↔ IsQFRelTo ∅ φ (σ := σ) := by
   constructor
   · intro h
@@ -75,7 +75,7 @@ instance instQFRelToImpClass (R : Set Sorts) : ImpClass L (IsQFRelTo R) where
   falsum := IsQFRelTo.falsum
   imp := fun _ _ hφ hψ => IsQFRelTo.imp hφ hψ
 
-variable  (Δ : {α : Fam Sorts} → {σ : Signature Sorts} → L.BoundedFormula α σ → Prop)
+variable (Δ : {α : Fam Sorts} → {σ : Signature Sorts} → L.BoundedFormula α σ → Prop)
   [ImpClass L Δ]
 
 theorem ImpClass.top : @Δ α σ ⊤ :=
@@ -111,7 +111,6 @@ open Formula Theory
 
 
 -- TODO, move this to Satisfiable.lean
-open scoped Classical
 private theorem bigAnd_implies_of_finset_implies {φ : L.Sentence} {T : L.Theory}
     {Γ₀ : Finset (L.Sentence)} (hΓ₀ : ∀ χ ∈ Γ₀, T ⊨ᵇ φ ⟹ χ) : T ⊨ᵇ φ ⟹ ⋀ Γ₀.toList := by
   rw [models_sentence_imp_iff]
@@ -124,7 +123,7 @@ private theorem bigAnd_implies_of_finset_implies {φ : L.Sentence} {T : L.Theory
   exact imp_χ N hφ
 
 --TODO: move to satisfiability
-private theorem models_bigAnd_imp_of_finset_models  {φ : L.Sentence} {T : L.Theory}
+private theorem models_bigAnd_imp_of_finset_models {φ : L.Sentence} {T : L.Theory}
     {Γ₀ : Finset L.Sentence} (h : T ∪ Γ₀ ⊨ᵇ φ) : T ⊨ᵇ ⋀ Γ₀.toList ⟹ φ := by
   rw [models_sentence_imp_iff]
   intro N hN
@@ -178,9 +177,10 @@ private theorem helper {φ : L.Sentence} {T : L.Theory} {Γ : L.Theory}
 
 
 theorem two_models_of_not_in_impclass (φ : L.Formula α) (T : L.Theory)
-    (hT : ∀ (ψ : L.Formula α), Δ ψ → ¬ (T ⊨ᵇ φ ⇔ ψ)):
+    (hT : ∀ (ψ : L.Formula α), Δ ψ → ¬ (T ⊨ᵇ φ ⇔ ψ)) :
     -- Hacky attempt at trying to make the universe levels line up
-    ∃ (M N : MSModelType.{u, v, z, max (max (max u u') v) z} T) (v : α →ₛ M) (w : α →ₛ N), φ.Realize v ∧ ¬ φ.Realize w ∧
+    ∃ (M N : MSModelType.{u, v, z, max (max (max u u') v) z} T) (v : α →ₛ M) (w : α →ₛ N),
+      φ.Realize v ∧ ¬ φ.Realize w ∧
     ∀ (ψ : L.Formula α), Δ ψ → (ψ.Realize v ↔ ψ.Realize w) := by
   -- Setup: work as much as possible with sentences over an extended Language
   set φₐ := φ.equivSentence with φₐ_def
@@ -231,7 +231,6 @@ theorem two_models_of_not_in_impclass (φ : L.Formula α) (T : L.Theory)
       · exact Set.mem_union_left _ (Set.mem_union_right _
           (Finset.mem_coe.mpr (Finset.mem_filter.mpr ⟨Finset.mem_coe.mp hx, hxΓ⟩)))
       · exact Set.mem_union_right _ hxφ
-
   -- Extract model N from the satisfiable theory (Tₐ ∪ Γ ∪ {∼ φₐ})
   let ⟨N⟩ := this
   -- N is an L[[α]]-structure modelling Tₐ ∪ Γ ∪ {∼ φₐ}
@@ -289,14 +288,14 @@ theorem two_models_of_not_in_impclass (φ : L.Formula α) (T : L.Theory)
           rw [Theory.model_union_iff, Theory.model_union_iff, Theory.model_singleton_iff]
           exact ⟨⟨M.is_model, hMA₀⟩ ,hMφ⟩
         exact ⟨MSModelType.mk M.Carrier⟩
-
+      -- χ ∈ Δ, up to equivalence between sentences and formulas
       have hχ_in_Δ : Δ (equivSentence.symm χ) := by
         rw [χ_def, equivSentence_symm_bigAnd]
         apply ImpClass.bigAnd
         intro φ' hφ'
         obtain ⟨ξ, hξ, rfl⟩ := List.mem_map.mp hφ'
         exact ((Finset.mem_filter.mp (Finset.mem_toList.mp hξ)).2).1
-
+      -- (∼ χ) ∈  Δ, up to equivalences between sentences and formulas
       have h_not_χ_in_Δ : Δ (equivSentence.symm (∼ χ)) := by
         rw [equivSentence_symm_not]
         exact ImpClass.imp _ _ hχ_in_Δ ImpClass.falsum
@@ -379,3 +378,9 @@ theorem two_models_of_not_in_impclass (φ : L.Formula α) (T : L.Theory)
     have : M ⊨ equivSentence ψ :=
       Theory.realize_sentence_of_mem (T := A) hψ_in_A
     exact (realize_equivSentence M.Carrier ψ).1 this
+
+end BoundedFormula
+
+end MSLanguage
+
+end MSFirstOrder
