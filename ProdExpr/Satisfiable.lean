@@ -1,4 +1,7 @@
-
+/-
+Based on the corresponding Mathlib file by Aaron Anderson
+Released under Apache 2.0 license as described in the file LICENSE.
+-/
 import ProdExpr.Ultraproducts
 import ProdExpr.Skolem
 import ProdExpr.Bundled
