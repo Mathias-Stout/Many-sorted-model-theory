@@ -1,7 +1,6 @@
 /-
-Copyright (c) 2021 Aaron Anderson. All rights reserved.
+Based on the corresponding Mathlib file by Aaron Anderson and Gabin Kolly
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Aaron Anderson, Gabin Kolly
 -/
 import Mathlib.Data.Fintype.Order
 import Mathlib.Order.Closure

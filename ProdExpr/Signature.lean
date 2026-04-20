@@ -32,8 +32,8 @@ instance instSigZero {S} : Zero (Signature S) :=
 /-- Mapping suggested by Adam Topaz: -/
 @[reducible]
 def Signature.Interpret {S : Type u} (X : Fam.{v} S) : Signature S → Type v
-  | 0       => PUnit
-  | .of s      => X s
+  | 0         => PUnit
+  | .of s     => X s
   | prod a b  => Interpret X a × Interpret X b
 
 /-
