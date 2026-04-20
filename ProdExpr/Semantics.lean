@@ -2089,8 +2089,9 @@ open BoundedFormula
 variable {s : Sorts} {r : L.Relations (⦃s⦄ ⨯ ⦃s⦄)}
 
 @[simp]
-theorem realize_reflexive : M ⊨ r.reflexive ↔ Reflexive fun x y : M s => i.RelMap r ⟨x, y⟩ :=
-  forall_congr' fun _ => realize_rel₂
+theorem realize_reflexive : M ⊨ r.reflexive ↔ Std.Refl fun x y : M s => i.RelMap r ⟨x, y⟩ := by
+  rw [refl_def]
+  exact forall_congr' (fun _ => realize_rel₂)
 
 @[simp]
 theorem realize_irreflexive : M ⊨ r.irreflexive ↔ Std.Irrefl fun x y : M s => i.RelMap r ⟨x, y⟩ :=

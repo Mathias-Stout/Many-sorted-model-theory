@@ -1,7 +1,6 @@
 /-
-Copyright (c) 2022 Aaron Anderson. All rights reserved.
+Based on the corresponding Mathlib file by Aaron Anderson
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Aaron Anderson
 -/
 import ProdExpr.Quotients
 import Mathlib.Order.Filter.Finite
