@@ -19,6 +19,8 @@ Fixes, small upgrades and partial reworks are all welcome, but there is currentl
 
 ## Repository structure
 
+**Note:** As of Apr. 21st 2026, the old `MultisortedLogic` approach as described below has been removed from this repo. The more modern approach, which was originally suggested by Adam Topaz, is the approach which can be found under the MulitsortedLogic folder.
+
 This repository consists of two main folders, `MultisortedLogic` and `ProdExpr`.
 The folder `MultisortedLogic` contains a more naive first approach on which the `ProdExpr` folder iterates, based on a suggestion by Adam Topaz.
 
