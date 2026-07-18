@@ -1,545 +1,718 @@
-import MultisortedLogic.Fam
-import Mathlib.Tactic
+import MultisortedLogic.Signature
+import MultisortedLogic.DepSet
 
 /-!
 # The supporting datatype of "sorted tuples"
 
-This file defines the SortedTuple datatype, equivalences to different representations and
-a mapping over them. A SortedTuple is meant to represent a dependent vector: the type of
+This file defines the Interpret datatype, equivalences to different representations and
+a mapping over them. A Interpret is meant to represent a dependent vector: the type of
 the entries is controlled by a list `σ` over some type `S` and an assignment `α → Type*`.
 Equivalently, it is an object of type `List (Sigma α)`, with given first projection.
 This abstract datatype helps convert between these different avatars while the project evolves.
-The representation of SortedTuples in the final iteration might differ drastically, or an entirely
+The representation of Interprets in the final iteration might differ drastically, or an entirely
 different datatype or formalism might be preferred after further testing.
 
 
 ## Main Definitions
 
-- Given a type `S`, a map `α : S → Type*` and a list `σ : List S`,
-  a `SortedTuple α σ` is a `List (Sigma α)` with first projection equal to `σ`
-- `Sortedtuple.ofList'` converts a `List (Sigma α)` to a SortedTuple, notation `!ₛ[ ... ]`
-- `SortedTuple.toMap` converts a `SortedTuple σ α` to a dependent map
+- Given a type `S`, a map `α : Fam S` and a list `σ : Signature S`,
+  a `α[^]σ` is a `List (Sigma α)` with first projection equal to `σ`
+- `Sortedtuple.ofList'` converts a `List (Sigma α)` to a Interpret, notation `!ₛ[ ... ]`
+- `Interpret.toMap` converts a `α[^]σ ` to a dependent map
   `(i : Fin σ.length) → α (σ.get i)`
-- `SortedTuple.toFMap` converts a `SortedTuple σ α` to a map fibered over `S`: an object of type
+- `Interpret.toFMap` converts a `α[^]σ ` to a map fibered over `S`: an object of type
   `(s : S) → { (i : Fin σ.length) // σ.get i = s } →  α s`
-- `SortedTuple.append` appends two SortedTuples, similar to appending lists
-- `SortedTuple.map` maps a dependent function over a SortedTuple,
+- `Interpret.append` appends two Interprets, similar to appending lists
+- `Interpret.map` maps a dependent function over a Interpret,
   similar to List.map. Notation `<$>ₛ`
 
 
 ## Main theorems
 
 - Equivalence between sorted tuples and dependent maps
-  in `SortedTuple.toMap_fromMap` and `SortedTuple.fromMap_toMap`
+  in `Interpret.toMap_fromMap` and `Interpret.fromMap_toMap`
 - Equivalence between sorted tuples and maps fibered over a base `S`
-  in `SortedTuple.toFMap_fromFMap` and `SortedTuple.fromFmap_toFmap`
+  in `Interpret.toFMap_fromFMap` and `Interpret.fromFmap_toFmap`
 - various helper theorems on appending,
-  casting over equality of the parametrizing list `σ`, and mapping over SortedTuples
+  casting over equality of the parametrizing list `σ`, and mapping over Interprets
 -/
 
 universe u v w z
 
 variable {S : Type u}
+namespace MSFirstOrder
+open Fam
+namespace Signature
+namespace Interpret
 
-@[ext]
-structure SortedTuple (σ : List S) (α : S → Type v) where
-  toList : List (Sigma α)
-  signature_eq : toList.map Sigma.fst = σ
+open Signature
 
-namespace SortedTuple
+variable {α β : Fam S} {s : S}
 
-variable {α : S → Type v} {β : S → Type w} {γ : S → Type z}
-variable {σ ξ η : List S} {s : S} {x : α s}
-variable {l : List (Sigma α)} {xs : SortedTuple σ α}
+/-! ## Basic Instances and Properties -/
+
+instance nilUnique : Unique (Interpret β ⦃⦄) :=
+  inferInstanceAs (Unique PUnit)
+
+instance emptyNil : IsEmpty ((⦃⦄.Idx) s) :=
+  by
+  constructor
+  intro a ; cases a
+
+lemma reduce_nil (a : Interpret α ⦃⦄) : a = default := rfl
+
+abbrev mk_default (α : Fam.{v} S) : Interpret α ⦃⦄ := default
+
+instance IdxNilEmpty : IsEmpty (Idx ⦃⦄ s) := by
+  constructor
+  intro a
+  cases a
+
+instance IdxNilEmpty' : IsEmpty (⦃⦄.IdxFam s) := by
+  constructor
+  intro a
+  cases a
+
+instance IdxofInhabited : Inhabited (Idx ⦃s⦄ s) :=
+  ⟨Idx.var⟩
+
+instance IdxofUnique : Unique (Idx ⦃s⦄ s) := by
+  constructor
+  · intro a
+    cases a
+    case var => rfl
+
+/-! ## Core Operations -/
+
+/-! ### Element Access -/
+
+/-- Takes an `IdxFam σ` as an index for a Sorted Tuple xs and returns
+    the value at that position.
+-/
+def get {σ : Signature S} (xs : α [^] σ) : (σ.IdxFam) →ₛ α  :=
+  match σ with
+  | .nil => ⟨fun s => fun v => isEmptyElim v⟩
+  | .of t => ⟨fun s => fun v => by
+    cases v
+    exact xs⟩
+  | .prod σ τ => ⟨fun s => fun v =>
+    match v with
+    | Idx.left w => get xs.1 s w
+    | Idx.right w => get xs.2 s w⟩
+
+/-
+lemma ext {σ : Signature S} (xs ys : α[^]σ) (h: ∀ (s: S) (v: σ.Idx s), xs.get s v = ys.get s v) :
+    xs = ys := by
+  induction σ
+  simp_all only [implies_true]
+  case of s =>
+    simpa using h s Idx.var
+  case prod σ τ ihσ ihτ =>
+    rcases xs with ⟨x, x'⟩
+    rcases ys with ⟨y, y'⟩
+    simp
+    exact
+      ⟨by apply ihσ x y
+          intro s v ; simpa using h s v.left,
+       by apply ihτ x' y'
+          intro s v ; simpa using h s v.right,
+      ⟩
+
+
+-/
+open Idx
+
+@[simp]
+theorem get_of (s : S) (xs : ⦃s⦄.Interpret α) : xs.get _ var = xs := rfl
+
+@[simp]
+theorem get_left {s : S} {σ τ : Signature S} {v : σ.Idx s} (xs : (σ.prod τ).Interpret α)
+  : get xs _ (left v) = get xs.1 _ v  := rfl
+
+@[simp]
+theorem get_right {s : S} {σ τ : Signature S} {v : σ.Idx s} (xs : (τ.prod σ).Interpret α)
+  : get xs _ (right v) = get xs.2 _ v  := rfl
+
+def fromGet {σ : Signature S} (v : IdxFam σ →ₛ α) : α[^]σ :=
+  match σ with
+  | .nil =>  (default : PUnit)
+  | .of t => v t var
+  | .prod _ _  =>  ⟨fromGet (⟨fun s => fun w => v s (left w)⟩),
+                  fromGet (⟨fun s => fun w => v s (right w)⟩)⟩
+
+@[simp]
+theorem get_fromGet {σ : Signature S} (xs : α [^] σ) : fromGet (get xs) = xs := by
+  induction σ
+  case nil => simp only
+  case of t => rfl
+  case prod σ τ =>
+    obtain ⟨fst, snd⟩ := xs
+    ext : 1
+    · simp_all only
+      apply σ
+    · simp_all only
+      apply τ
+
+@[simp]
+theorem fromGet_get {σ : Signature S} (v : (IdxFam σ) →ₛ α) : get (fromGet v) = v :=by
+  ext s x
+  induction σ
+  case nil => exact isEmptyElim x
+  case of t =>
+    have h : α t = α[^]⦃t⦄ := by rfl
+    change get (h ▸ (v t var)) s x = v s x
+    cases x
+    case var =>
+    simp_all only
+    rfl
+  case prod σ τ =>
+    rw[fromGet, get]
+    simp_all only [Fam.FamMap.mk_apply]
+    split
+    next v_1 w => simp_all only
+    next v_1 w => simp_all only
+
+
+/-- Decomposition lemma for `fromGet` on product signatures.
+    Useful for simplifying contexts in ultraproduct proofs.
+    Not marked @[simp] to avoid interfering with `comap` proofs. -/
+theorem fromGet_prod {σ τ : Signature S} (v : IdxFam (σ ⨯ τ) →ₛ α) :
+    fromGet v = ⟨fromGet ⟨fun s w => v s (Idx.left w)⟩,
+                 fromGet ⟨fun s w => v s (Idx.right w)⟩⟩ := rfl
+
+/-! ## Conversion Functions -/
+
+/-! ### List Conversion -/
+
+/-- Forget the tree shape and just view it as a list of elements with their sorts. -/
+def toList {σ : Signature S} (t : α [^] σ) : List (Sigma α) :=
+  match σ with
+  | ⦃⦄  => []
+  | of s          => [⟨s, t⟩]
+  | prod _ _      => toList t.fst ++ toList t.snd
+
+/-! ### Finset Conversion -/
+
+/--
+Turn a Sorted Tuple into a Finset of ⟨s, a : α s⟩ pairs
+-/
+def toFinset {σ : Signature S} (t : α [^] σ)
+    [DecidableEq S] [∀ t, DecidableEq (α t)] : Finset (Sigma α) :=
+  match σ with
+  | nil            => ∅
+  | of s         => {⟨s, t⟩}
+  | prod _ _      => toFinset t.fst ∪ toFinset t.snd
+
+@[simp] lemma toList_nil :
+   toList (mk_default α) = [] := rfl
+
+@[simp] lemma toList_of (s : S) (a : α s) :
+    toList (σ := ⦃s⦄) a = [⟨s, a⟩] := rfl
+
+@[simp] lemma toList_prod {σ τ : Signature S} (xs : α [^] σ) (ys : τ.Interpret α) :
+    toList (σ := σ.prod τ) ⟨xs,  ys⟩ = toList xs ++ toList ys := rfl
+
+@[simp] lemma toList_prod' {σ τ : Signature S} (xs : (σ.prod τ).Interpret α) :
+    toList (σ := σ.prod τ) xs = toList xs.1 ++ toList xs.2 := rfl
+
+/-! ### Length Properties -/
+
+lemma toList_length {σ : Signature S} {xs ys : α [^] σ} :
+  (toList xs).length = (toList ys).length := by
+  induction σ
+  case of => simp only [toList_of, List.length_cons, List.length_nil, zero_add]
+  case nil => simp only
+  case prod σ τ ih₁ ih₂ => simp only [toList_prod', List.length_append,
+    ih₁ (xs := xs.1) (ys := ys.1), ih₂ (xs := xs.2) (ys := ys.2)]
+
+variable {α : Fam.{v} S} {β : Fam S} {γ : Fam S}
+variable {σ ξ η : Signature S} {s : S} {x : α s}
+variable {l : List (Sigma α)} {xs : α [^] σ}
 
 open List
 
-/-- Extract the signature from a SortedTuple. -/
-def signature (_xs : SortedTuple σ α) : (List S) := σ
-
-/-- Alias for the constructor -/
-def fromList (l : List (Sigma α)) (h : l.map Sigma.fst = σ) : SortedTuple σ α :=
-  SortedTuple.mk l h
-
-/-- Construct a -SortedTuple from just a List of Sigma α. -/
-def fromList' (l : List (Sigma α)) : SortedTuple (l.map Sigma.fst) α :=
-  fromList l rfl
-
-syntax (name := sortedTupleNotation) "!ₛ[" term,* "]" : term
-
-/-- Notation for constructing SortedTuples,
-  similar to the one for constructing non-dependent vectors. -/
-macro_rules
-  | `(!ₛ[$term:term, $terms:term,*]) => `(fromList' (List.cons $term [$terms,*]))
-  | `(!ₛ[$term:term]) => `(fromList' [$term])
-  | `(!ₛ[]) => `(fromList' [])
-
-
-/-- Abbreviation for toList.get -/
-abbrev get (xs : SortedTuple σ α) := xs.toList.get
-
 @[simp]
-theorem length_eq (xs : SortedTuple σ α) : xs.toList.length = σ.length := by
-  trans (xs.toList.map Sigma.fst).length
-  · simp
-  · rw[xs.signature_eq]
+theorem length_eq (xs : α [^] σ) : (toList xs).length = σ.length := by
+  induction σ
+  case nil => rfl
+  case of =>
+    simp only [toList_of, length_cons, List.length_nil, zero_add, length]
+  case prod =>
+    simp_all only [toList_prod', length_append, length]
 
-/-- Get the i-th element of the sorted tuple, casting over the equality from length_eq. -/
-abbrev getFinCast (xs : SortedTuple σ α) (i : Fin σ.length) :=
-  xs.get (Fin.cast xs.length_eq.symm i)
+theorem length_eq_List (xs : α [^] σ) : (toList xs).length = σ.toList.length := by
+  induction σ
+  case nil =>
+    simp only [length_eq, length_nil, Signature.toList, List.length_nil]
+  case of =>
+    simp only [toList_of, length_cons, List.length_nil, zero_add, Signature.toList]
+  case prod _ _ ih₁ ih₂ =>
+    simp_all only [length_eq, toList_prod', length_append, ih₁ (xs := xs.1), ih₂ (xs := xs.2),
+      Signature.toList]
 
-/-- A version of signature_eq specialized individual elements and taking care of resulting casts. -/
-theorem proj_get (xs : SortedTuple σ α) :
-    ∀ i, (xs.get i).fst = σ.get (Fin.cast xs.length_eq i) := by
-  simp [xs.signature_eq.symm]
+/-! ## Mapping Operations -/
 
-/-- A version of signature_eq,
-  specialized to individual elements and taking care of resulting casts. -/
-theorem proj_get' (xs : SortedTuple σ α) :
-    ∀ i, (xs.getFinCast i).fst = σ.get i := by
-  intro i
-  rw [xs.proj_get]
-  simp
-
-/-- Theorem proj_get lifted to dependent types -/
--- TODO: Replace all uses of this theorem by calls to theorems in the Mathlib, if possible
-theorem proj_type (xs : SortedTuple σ α) :
-    ∀ i, α (xs.get i).fst = α (σ.get (Fin.cast xs.length_eq i)) :=
-  fun i => congrArg α (xs.proj_get i)
-
-/-- Theorem proj_get' lifted to dependent types -/
--- TODO: Replace all uses of this theorem by calls to theorems in the Mathlib, if possible
-theorem proj_type' (xs : SortedTuple σ α) :  ∀ i, α (xs.getFinCast i).fst = α (σ.get i) :=
-  fun i => congrArg α (xs.proj_get' i)
-
-/-- The identity map `α (xs.get_cast i).fst → α (σ.get i)` -/
-def castType {xs : SortedTuple σ α} {i : Fin (σ.length)}
-    (x : α ((xs.getFinCast i)).fst) : α (σ.get i) :=
-  xs.proj_get' i ▸ x
-
-def castTypeInv {xs : SortedTuple σ α} {i : Fin (σ.length)}
-    (x : α (σ.get i)) : α ((xs.getFinCast i)).fst :=
-  xs.proj_get' i ▸ x
-
-@[simp]
-theorem castType_castTypeInv {xs : SortedTuple σ α} {i : Fin σ.length} :
-  ∀ (x : α (σ.get i)), castType (xs.castTypeInv x) = x := by
-  intro x
-  unfold castType castTypeInv
-  simp only [get_eq_getElem, Fin.coe_cast, eqRec_eq_cast, cast_cast, cast_eq]
-
-@[simp]
-theorem castTypeInv_castType {xs : SortedTuple σ α} {i : Fin (σ.length)} :
-    ∀ (x : α ((xs.getFinCast i)).fst), castTypeInv (xs.castType x) = x := by
-  intro x
-  unfold castType castTypeInv
-  simp only [get_eq_getElem, Fin.coe_cast, eqRec_eq_cast, cast_cast, cast_eq]
-
-/-- castType as an equivalence. -/
-def castTypeEquiv {xs : SortedTuple σ α} {i : Fin (σ.length)} :
-    α ((xs.getFinCast i)).fst ≃ α (σ.get i) where
-  toFun := castType
-  invFun := castTypeInv
-  left_inv := by apply castTypeInv_castType
-  right_inv := by apply castType_castTypeInv
-
-/- Lemma to help simplify types. -/
-@[simp]
-theorem toList_getElem_fst (xs : SortedTuple σ α) (n : ℕ)
-    {h₁ : n < xs.toList.length} {h₂ : n < σ.length} : xs.toList[n].fst = σ[n] := by
-  have h  : σ[n] = σ.get (Fin.mk n h₂) := rfl
-  have h' : xs.toList[n] = xs.get (Fin.mk n h₁) := rfl
-  rw [h, h']
-  rw [proj_get]
-  simp
-
-@[simp]
-theorem toList_fromList (l : List (Sigma α)) (h : l.map Sigma.fst = σ) :
-    (fromList l h).toList = l := rfl
-
-@[simp]
-theorem fromList_toList : fromList xs.toList xs.signature_eq = xs := rfl
-
-/-- Cast over equality of the list signatures. -/
-def castL (h : σ = ξ) (xs : SortedTuple σ α) : SortedTuple ξ α :=
-  fromList xs.toList (by rw[signature_eq,h])
-
-@[simp]
-theorem castL_eq {h : σ = σ} (xs : SortedTuple σ α) : xs.castL h = xs := by
-  rfl
-
-@[simp]
-theorem castL_trans {η : List S} {h : σ = ξ} {h' : ξ = η} (xs : SortedTuple σ α) :
-    castL h' (castL h xs) = castL (h.trans h') xs := by rfl
-
-section asMap
-
-/-- Construct a sorted tuple from a dependent map with domain Fin σ.length -/
-def fromMap (f : (i : Fin σ.length) → α (σ.get i)) : SortedTuple σ α :=
-  fromList (List.ofFn (fun i => ⟨σ.get i,f i⟩ ))
-    (by rw[List.map_ofFn,Function.comp_def]; simp only [List.get_eq_getElem,
-    List.ofFn_getElem])
-
-/-- Construct a sorted tuple from a dependent map with domain Fin n and a proof that n = σ.length -/
-def fromMap' {n : ℕ} (h : n = σ.length) (f : (i : Fin n) → α (σ.get (Fin.cast h i))) :
-    SortedTuple σ α :=
-  fromList (List.ofFn (fun i => ⟨σ.get i, f (Fin.cast h.symm i)⟩))
-    (by rw[List.map_ofFn,Function.comp_def]; simp only [List.get_eq_getElem, List.ofFn_getElem])
-
-/-- Helper theorem to flatten applications of toMap and fromMap. -/
-theorem fromMap_getFinCast_eq_Sigma_mk {f : (i : Fin σ.length) → α (σ.get i)} (i : Fin σ.length) :
-    (fromMap f).getFinCast i = Sigma.mk (σ.get i) (f i) := by
-  simp_all only [List.get_eq_getElem, Fin.coe_cast]
-  unfold fromMap
-  simp only [toList_fromList]
-  rw [List.getElem_ofFn]
-  apply Sigma.ext
-  · simp_all only [Fin.eta, List.get_eq_getElem]
-  · simp_all only [Fin.eta, List.get_eq_getElem, heq_eq_eq]
-
-/-- Convert a SortedTuple to a dependent map -/
-def toMap (xs : SortedTuple σ α) : (i : Fin (σ.length)) → (α (σ.get i)) :=
-  fun i =>  (xs.proj_type' i) ▸ (xs.getFinCast i).snd
-
-@[simp]
-theorem fromMap_toMap {xs : SortedTuple σ α} : fromMap xs.toMap = xs := by
-  unfold toMap fromMap fromList
-  apply SortedTuple.ext
-  simp only [List.get_eq_getElem, Fin.coe_cast]
-  refine List.ext_get ?_ ?_
-  · simp
-  · intro n h₁ h₂
-    simp only [List.get_eq_getElem, List.getElem_ofFn]
-    refine Sigma.ext ?_ ?_
-    · simp only
-      rw [toList_getElem_fst]
-    · simp only [eqRec_heq_iff_heq, heq_eq_eq]
-
--- TODO: is this helper lemma already in the Mathlib?
-theorem snd_eq {x y : Sigma α} (h : α x.fst = α y.fst) (h' : x = y) : h ▸ x.snd = y.snd := by
-  subst h'
-  rfl
-
-@[simp]
-theorem toMap_fromMap {f : (i : Fin σ.length) → α (σ.get i)} : toMap (fromMap f) = f := by
-  ext i
-  unfold toMap
-  rw [snd_eq ((fromMap f).proj_type' i) (fromMap_getFinCast_eq_Sigma_mk i)]
-
-/-- Equivalence between SortedTuples and dependent maps -/
-def EquivMap {S : Type u} {σ : List S} {α : S → Type v} :
-    SortedTuple σ α ≃ ((i : Fin σ.length) → (α (σ.get i))) where
-  toFun := toMap
-  invFun := fromMap
-  left_inv := by
-    rw [Function.LeftInverse]
-    intro xs
-    apply fromMap_toMap
-  right_inv := by
-    rw [Function.rightInverse_iff_comp]
-    funext f
-    apply toMap_fromMap
-
-/-- Get the second component of the i-th element, casting over any relevant equalities -/
-abbrev get_cast {n : ℕ} {s : S} (xs : SortedTuple σ α) (i : Fin n) (hn : n = σ.length)
-    (hσ : σ.get (Fin.cast hn i) = s) : α s :=
-  hσ ▸ xs.toMap (Fin.cast hn i)
-
-end asMap
-
-section asFMap
-
-/-- Turn a sorted tuple into a fibered map. -/
-def toFMap (xs : SortedTuple σ α) : σ.toFam →ₛ α := fun _ ⟨i,h⟩ => xs.get_cast i rfl h
-
-/-- Build a sorted tuple from a specific kind of fibered map. -/
-def fromFMap (f : σ.toFam →ₛ α) : SortedTuple σ α := fromMap (fun i => f (σ.get i) ⟨i,rfl⟩)
-
-theorem toFMap_eq (xs : SortedTuple σ α) : xs.toFMap = fun _s ⟨i,h⟩ => xs.get_cast i rfl h := rfl
-
-@[simp]
-theorem toFMap_fromFMap (f : σ.toFam →ₛ α) : (fromFMap f).toFMap = f := by
-  unfold toFMap fromFMap get_cast
-  funext s ⟨i,h⟩
-  subst h
-  simp
-
-@[simp]
-theorem fromFMap_toFMap (xs : SortedTuple σ α) : fromFMap xs.toFMap = xs := by
-  unfold fromFMap toFMap get_cast
-  simp
-
-end asFMap
-
-section extensionality
-
-theorem eq_toList_eq_iff {xs ys : SortedTuple σ α} : xs = ys ↔ xs.toList = ys.toList := by
-  apply SortedTuple.ext_iff
-
-theorem eq_toMap_eq_iff {xs ys : SortedTuple σ α} : xs = ys ↔ xs.toMap = ys.toMap := by
-  refine (Function.Injective.eq_iff ?_).symm
-  refine Function.HasLeftInverse.injective ?_
-  use fromMap
-  apply fromMap_toMap
-
-theorem eq_if_toMap_eq {xs ys : SortedTuple σ α} : xs.toMap = ys.toMap → xs = ys :=
-  eq_toMap_eq_iff.mpr
-
-theorem eq_if_list_eq {l₁ l₂ : List (Sigma α)} {h₁ : l₁.map Sigma.fst = σ}
-    {h₂ : l₂.map Sigma.fst = σ} (h : l₁ = l₂) : fromList l₁ h₁ = fromList l₂ h₂ := by
-  apply SortedTuple.ext
-  simpa
-
-end extensionality
-
-section append
-
-def append (xs : SortedTuple σ α) (ys : SortedTuple ξ α) : SortedTuple (σ ++ ξ) α :=
-  fromList (xs.toList ++ ys.toList) (by rw [List.map_append,signature_eq,signature_eq])
-
-def extend (xs : SortedTuple σ α) (x : α s) : SortedTuple (σ ++ [s]) α :=
-  xs.append (fromList [⟨s, x⟩] rfl)
-
-theorem toList_append (xs : SortedTuple σ α) (ys : SortedTuple ξ α) :
-    (xs.append ys).toList = xs.toList ++ ys.toList := by
-  unfold append
-  rw [toList_fromList]
-
-theorem toList_extend {xs : SortedTuple σ α} :
-    (xs.extend x).toList = xs.toList ++ [⟨s,x⟩] := rfl
-
-theorem append_fromList {l m : List (Sigma α)}
-    {hl : l.map (Sigma.fst) = σ} {hm : m.map (Sigma.fst) = ξ} :
-    (fromList l hl).append (fromList m hm) = fromList (l ++ m) (by rw[List.map_append,hl,hm]) := by
-  unfold append
-  simp only [toList_fromList]
-
-theorem extend_fromMap {f : (i : Fin σ.length) → α (σ.get i)} :
-    (fromMap f).extend x =
-    fromList ((fromMap f).toList ++ [Sigma.mk s x]) (by simp [(fromMap f).signature_eq]) := rfl
-
-/-- Appending is associative, up to casting over equality of lists. -/
-theorem append_assoc (xs : SortedTuple σ α) (ys : SortedTuple ξ α) (zs : SortedTuple η α) :
-    (xs.append ys).append zs =
-    castL (Eq.symm (List.append_assoc σ ξ η)) (xs.append (ys.append zs)) := by
-  unfold append castL
-  simp
-
-end append
-
-/-Applying dependent functions to SortedTuples. -/
 section maps
 
-/-- Map a dependent function over a SortedTuple, similar to List.map. -/
-def map (f : α →ₛ β) (xs : SortedTuple σ α) : SortedTuple σ β :=
-  fromMap (fun i => f (σ.get i) (xs.toMap i))
+/-- Map a dependent function over a Interpret, similar to List.map. -/
+def map (f : α →ₛ β) {σ : Signature S} (xs : α [^] σ) : β [^] σ:=
+  match f , σ , xs with
+  | _ , .nil  , _      =>  default
+  | f , .of s , xs      =>  f s xs
+  | f , .prod _ _ , xs => ⟨map f xs.1 , map f xs.2⟩
+
+/-- Map using a FamMapClass instance - this version can better infer the target family. -/
+def mapClass {F : Type*} {base : Type*} {M N : Fam base} [Fam.FamMapClass F M N]
+    (φ : F) {σ : Signature base} (xs : M [^] σ) : N [^] σ :=
+  map (Fam.FamMapClass.toFamMap φ) xs
 
 /--A sorted tuple is comparable to a "dependent functor",
   so we borrow this notation for "Functor.map". -/
-infixr:100 " <$>ₛ " => SortedTuple.map
+infixr:100 " <$>ₛ " => Interpret.mapClass
 
-theorem map_eq (f : α →ₛ β) (xs : SortedTuple σ α) :
-    f <$>ₛ xs = fromMap (fun i => f (σ.get i) (xs.toMap i)) := rfl
-
-@[simp]
-theorem map_id (xs : SortedTuple σ α) : (fun _ => id) <$>ₛ xs = xs := by
-  unfold map
-  simp only [List.get_eq_getElem, id_eq, fromMap_toMap]
+lemma mapClass_map_prod {F} [FamMapClass F α β] (f : F) (xs : α [^] σ) (ys : α [^] ξ) :
+  Interpret.mapClass f (σ := σ ⨯ ξ) (xs, ys) = (f <$>ₛ xs, f <$>ₛ ys) := rfl
 
 @[simp]
-theorem map_id' (xs : SortedTuple σ α) : (fun _ t => t) <$>ₛ xs = xs := by
-  have : (fun _ t => t : α →ₛ α) = fun _ => id := rfl
-  simp [this]
+theorem mapClass_eq_map {F} [FamMapClass F α β] (f : F) (xs : α [^] σ) :
+    f <$>ₛ xs = map (f : α →ₛ β) xs := rfl
+
+@[simp]
+theorem map_id (xs : α [^] σ) : FamMap.idₛ (α:= α) <$>ₛ xs = xs := by
+  induction σ
+  case nil => simp only [mapClass, map, PUnit.default_eq_unit]
+  case of => rfl
+  case prod τ η ih₁ ih₂ =>
+      simp_all only [mapClass, map, Prod.mk.eta]
+
+@[simp]
+theorem map_id_map (xs : α [^] σ) : map (FamMap.idₛ (α := α)) xs = xs := by
+  change FamMap.idₛ (α := α) <$>ₛ xs = xs
+  exact map_id xs
+
+@[simp]
+theorem map_id' (xs : α [^] σ) : (⟨fun _ t => t⟩ : FamMap _ _ ) <$>ₛ xs = xs := by
+  have : (⟨fun _ t => t⟩ : α →ₛ α) = ⟨fun _ => id⟩ := rfl
+  change FamMap.idₛ (α:= α) <$>ₛ xs = xs
+  simp only [map_id]
 
 theorem comp_map (φ : α →ₛ β) (ψ : β →ₛ γ)
-    (xs : SortedTuple σ α) : ((ψ ∘ₛ φ) <$>ₛ xs) = ψ <$>ₛ (φ <$>ₛ xs) := by
-  unfold map
-  simp only [Function.comp_apply, toMap_fromMap]
+    (xs : α [^] σ) : ((ψ ∘ₛ φ) <$>ₛ  xs) = ψ <$>ₛ (φ <$>ₛ  xs) := by
+  induction σ
+  case nil => simp [mapClass, map]
+  case of => rfl
+  case prod τ η ih₁ ih₂ =>
+    simp_all only [mapClass, map]
 
-theorem fromMap_map (f : (i : Fin (σ.length)) → α (σ.get i)) {g : α →ₛ β} :
-    fromMap (fun i => g (σ.get i) (f i)) = g <$>ₛ fromMap f := by
-  unfold map
-  simp
+theorem comp_mapClass {F} [FamMapClass F α β] {G} [FamMapClass G β γ]
+    (φ : F) (ψ : G) (xs : α [^] σ) :
+    (((ψ : β →ₛ γ) ∘ₛ (φ : α →ₛ β)) <$>ₛ xs) = ψ <$>ₛ (φ <$>ₛ xs) := by
+  rw [comp_map]
+  rfl
 
 @[simp]
-theorem fromMap_map_fun_singleton {s : S} (x : α s) (f : α →ₛ β) :
-    fromMap (fun i ↦ f _ (!ₛ[⟨s, x⟩].toMap i)) =  !ₛ[⟨s, f s x⟩] := rfl
+theorem map_mapClass {F} [FamMapClass F α β] {G} [FamMapClass G β γ]
+    (φ : F) (ψ : G) (xs : α [^] σ) :
+    ψ <$>ₛ (φ <$>ₛ xs) = (((ψ : β →ₛ γ) ∘ₛ (φ : α →ₛ β)) <$>ₛ xs) := by
+  simpa using (comp_mapClass (φ := φ) (ψ := ψ) (xs := xs)).symm
 
--- TODO: cleaner proof preferred, without nonterminal simps
-theorem toFMap_map (xs : SortedTuple σ α) (f : α →ₛ β) : (f <$>ₛ xs).toFMap = f ∘ₛ xs.toFMap := by
-  funext s x
-  unfold toFMap map get_cast
-  simp_all only [List.get_eq_getElem, Fin.cast_eq_self, toMap_fromMap, Function.comp_apply]
-  split
-  rename_i x i h
-  subst h
-  simp_all only [List.get_eq_getElem]
+@[simp]
+theorem map_map {F} [FamMapClass F α β] {G} [FamMapClass G β γ] (φ : F) (ψ : G) (xs : α [^] σ) :
+    ψ <$>ₛ (φ <$>ₛ xs) = map ((ψ : β →ₛ γ) ∘ₛ (φ : α →ₛ β)) xs := by
+  rw [map_mapClass]
+  rfl
 
--- Todo: remove sorries
-theorem map_extend {β : S → Type*} {s : S} {f : α →ₛ β} (x : α s) :
-    f <$>ₛ (xs.extend x) = (f <$>ₛ xs).extend (f s x) := by
-    sorry
+@[simp]
+theorem get_map {F} [FamMapClass F α β] (xs : α [^] σ) (f : F) : Interpret.get (f <$>ₛ xs) =
+    f ∘ₛ (get xs) := by
+  induction σ with
+  | nil => ext s x; exact isEmptyElim x
+  | of s =>
+    ext s₁ a; cases a
+    simp_all only [get_of]; rfl
+  | prod σ₁ σ₂ ih₁ ih₂ =>
+    ext s a; obtain ⟨x₁, x₂⟩ := xs
+    simp_all only [mapClass, map]
+    cases a with
+    | left v => simp_all only [get_left]; rfl
+    | right w => simp_all only [get_right]; rfl
 
-theorem map_append {β : S → Type*} {ξ : List S}
-    (xs : SortedTuple σ α) (ys : SortedTuple ξ α) (f : α →ₛ β) :
-    f <$>ₛ (xs.append ys) =  (f <$>ₛ xs).append (f <$>ₛ ys) := by sorry
+@[simp]
+theorem get_map_apply {F} [FamMapClass F α β] (xs : α [^] σ) (f : F) (s : S) (v : σ.Idx s) :
+    (f <$>ₛ xs).get s v = f s (xs.get s v) := by
+  calc
+    (f <$>ₛ xs).get s v = (Interpret.get (f <$>ₛ xs)) s v := rfl
+    _ = (f ∘ₛ xs.get) s v := by
+      exact congrArg (fun g => g s v) (get_map (σ := σ) (xs := xs) (f := f))
+    _ = f s (xs.get s v) := rfl
+
+@[simp]
+theorem map_prod {F} [FamMapClass F α β] {σ₁ σ₂ : Signature S} (f : F) (x₁ : σ₁.Interpret α)
+    (x₂ : α [^] σ₂) : (f <$>ₛ (x₁, x₂) : (σ₁.prod σ₂).Interpret β) =
+    ((f <$>ₛ x₁, f <$>ₛ x₂) : (σ₁.prod σ₂).Interpret β) := by
+  simp [mapClass, map]
 
 end maps
 
+/-! ## Type Class Instances -/
+
 section instances
 
-instance {S : Type u} {α : S → Type v} : Unique (SortedTuple [] α) where
-  default := fromList [] rfl
-  uniq := fun xs => by
-    apply SortedTuple.ext
-    rw [toList_fromList,List.eq_nil_iff_length_eq_zero,xs.length_eq]
-    rfl
-
-theorem default_toMap {S : Type u} {α : S → Type v} (f : (i : Fin [].length) → α ([].get i)) :
-    f = (default : SortedTuple _ _).toMap := funext (fun i => Fin.elim0 i)
+@[simp]
+theorem default_toList {S : Type u} {α : Fam S} :
+  toList (default : nil.Interpret α ) = [] := rfl
 
 @[simp]
-theorem default_toFMap {S : Type*} {α : S → Type*} :
-    toFMap (default : SortedTuple [] α)
-    = fun s (i : [].toFam s) => IsEmpty.elim (by simp) i := by
-  funext s i
-  exact IsEmpty.elim (by simp) i
+theorem map_default {S : Type u} {α : Fam S} {β : Fam S} {F} [FamMapClass F α β] (f : F) :
+  f <$>ₛ (default : nil.Interpret α) = default := by
+    simp [mapClass, map]
 
-@[simp]
-theorem default_toList {S : Type u} {α : S → Type*} :
-  toList (default : SortedTuple [] α) = [] := rfl
+/-- Decidability instance for Interpret equality.
+    Uses structural recursion on the Signature shape. -/
+def decidableEq
+    [∀ s, DecidableEq (α s)] :
+    ∀ {σ : Signature S}, DecidableEq (α[^]σ)
+| .nil =>
+    by intro a b; cases a; cases b; exact isTrue rfl
+| .of s =>
+    by
+    aesop
+| .prod σ τ =>
+    by
+    simp only [Interpret]
+    intro a b
+    rcases a with ⟨a1, a2⟩
+    rcases b with ⟨b1 , b2⟩
+    have h1 : Decidable (a1 = b1) :=
+      Interpret.decidableEq (σ := σ) a1 b1
+    have h2 : Decidable (a2 = b2) :=
+      Interpret.decidableEq (σ := τ) a2 b2
+    have h3:= (inferInstance : Decidable (a1 = b1 ∧ a2 = b2))
+    aesop
 
-@[simp]
-theorem map_default {S : Type u} {α β : S → Type*} {f : α →ₛ β} :
-  f <$>ₛ (default : SortedTuple [] α) = default := rfl
+instance instDecidableEq
+    [∀ s, DecidableEq (α s)] :
+    DecidableEq (α[^]σ) :=
+  Interpret.decidableEq (σ := σ)
 
-instance instDecidableEq [hyp : ∀ i : Fin σ.length, DecidableEq (α (σ.get i))] :
-  DecidableEq (SortedTuple σ α) := fun xs ys =>
-  if h : xs.toMap = ys.toMap then
-    .isTrue <| by
-    have h' := congrArg fromMap h
-    rw [fromMap_toMap,fromMap_toMap] at h'
-    exact h'
-  else
-    .isFalse fun h' => h (congrArg toMap h')
+instance {σ : Signature S} [∀ a, Nonempty (α a)] : Nonempty (α [^] σ) := by
+  induction σ with
+  | nil => infer_instance
+  | of => infer_instance
+  | prod => infer_instance
 
-section coercions
+open Signature
+open Fam
 
-instance CoeMap : Coe (SortedTuple σ α) ((i : Fin σ.length) → α (σ.get i)) where
-  coe := toMap
-/-- Coercion instance from SortedTuple to a dependent object over Sorts -/
-instance instCoeFam : Coe (SortedTuple σ α) (σ.toFam →ₛ α) where
-  coe := toFMap
+/-- "Flat" argument tuples: one entry per position in the arity `σ`. -/
+def SortedMap (α : Fam.{v} S) (σ : Signature S) :=
+  (i : Fin σ.length) → α (σ.getIdxFam i).1
 
-/-- Coercion instance from a dependent map to a SortedTuple -/
-instance instCoeFromMap : Coe ((i : Fin σ.length) → α (σ.get i)) (SortedTuple σ α) where
-  coe := fromMap
+/-- Coercion instance from Interpret to a dependent object over Sorts -/
+instance instCoeFam : Coe (σ.Interpret α) (σ.IdxFam →ₛ α) where
+  coe := get
 
-end coercions
+@[ext]
+lemma ext {xs ys : σ.Interpret α} (h : ∀ (s : S) (v : σ.Idx s),
+        xs.get s v = ys.get s v) : xs = ys := by
+  induction σ
+  case nil => simp_all only [reduce_nil, PUnit.default_eq_unit, implies_true]
+  case of s  =>
+    have conc := h s (Idx.var)
+    simp only [get] at conc
+    exact conc
+  case prod σ τ ihσ ihτ =>
+    rcases xs with ⟨xsσ, xsτ⟩
+    rcases ys with ⟨ysσ, ysτ⟩
+    rw[Prod.mk.injEq]
+    constructor
+    case left =>
+      apply ihσ
+      intro s v
+      have h' := h s (v.left)
+      simp only [get] at h'
+      exact h'
+    case right =>
+      apply ihτ
+      intro s v
+      have h' := h s (v.right)
+      simp only [get] at h'
+      exact h'
 
+lemma ext_iff' {xs ys : σ.Interpret α} :
+    xs = ys ↔ ∀ (s : S) (v : σ.Idx s), xs.get s v = ys.get s v := by
+  constructor
+  · exact fun h s v ↦ by rw [h]
+  · exact ext
 end instances
 
-section induction
+section quotients
 
-/- Helper definition-/
-def getPrefix (xs : SortedTuple (σ ++ [s]) α) : SortedTuple σ α :=
-    let l := take (xs.toList.length - 1) xs.toList
-    have hlmap : l.map Sigma.fst = σ := by
-      rw [List.map_take, signature_eq]
-      simp
-    fromList l hlmap
-
-/- Helper definition-/
-def getLast (xs : SortedTuple (σ ++ [s]) α) : α s :=
-  have : 0 < xs.toList.length := by
-    rw [xs.length_eq, List.length_append, List.length_singleton]
-    apply Nat.zero_lt_succ
-  have h : xs.toList ≠ [] := length_pos_iff.mp this
-  let p := xs.toList.getLast h
-  have h_proj_ne_nil : xs.toList.map Sigma.fst ≠ [] := fun h' => h (map_eq_nil_iff.mp h')
-  have : p.fst = s := by
-    rw [(getLast_map h_proj_ne_nil).symm]
-    simp [signature_eq]
-  this ▸ p.snd
-
-/- Key lemma to define a snocInduction-/
-def extend_surj {s : S} (xs : SortedTuple (σ ++ [s]) α) :
-    (xs.getPrefix).extend (xs.getLast) = xs := by
-  apply SortedTuple.ext
-  unfold getPrefix getLast extend append
-  simp only [toList_fromList]
-  have : 0 < xs.toList.length := by
-    rw [xs.length_eq, List.length_append]
-    norm_num
-  have h : xs.toList ≠ [] := length_pos_iff.mp this
-  have hlx := xs.toList.take_append_getLast h
-  nth_rw 6 [← hlx]
-  have h_proj_ne_nil : xs.toList.map Sigma.fst ≠ [] := fun h' => h (map_eq_nil_iff.mp h')
-  congr
-  · rw [(getLast_map h_proj_ne_nil).symm]
-    simp [signature_eq]
-  · simp
-
-
-/-- An analouge of Fin.snocInduction. -/
-@[elab_as_elim]
-def snocInduction {motive : {ξ : List S} → SortedTuple ξ α → Sort*} :
-    (base :  (xs : SortedTuple [] α) → motive xs) →
-    (step : (ξ : List S) → (ys : SortedTuple ξ α) → (s : S) →  (x : α s) →
-      (motive ys) → motive (ys.extend x)) →
-    {σ  : List S} → (xs : SortedTuple σ α) → motive xs := by
-  intro hb ih σ
-  apply List.reverseRecOn (motive := fun (σ : List S) => (xs : SortedTuple σ α) → motive xs) σ hb
-    (fun ξ s ih' => by
-    intro xs
-    rw [← xs.extend_surj]
-    exact ih ξ xs.getPrefix s xs.getLast (ih' xs.getPrefix)
-    )
-
-/-- Alternative SortedTuple.map using snocInduction. -/
-def map' {β : S → Type*} (xs : SortedTuple σ α) (f : α →ₛ β) : SortedTuple σ β :=
-  snocInduction
-    (fun _ => (default : SortedTuple [] β))
-    (fun ξ _ s x (ys_mapped : SortedTuple ξ β) => ys_mapped.extend (f s x)) xs
+open Fam
+/--
+If the underlying family `α` carries a many-sorted setoid, then each interpretation
+`α[^]σ` inherits a setoid by transporting the pointwise setoid on maps
+`σ.IdxFam →ₛ α` along `SortedTuple.get`.
+-/
+instance instSetoidInterpret [MSSetoid α] : {σ : Signature S} → Setoid (α[^]σ)
+  | nil => {
+    r := fun _ _ ↦ True
+    iseqv := {
+      refl := fun _ ↦ True.intro
+      symm := id
+      trans := fun _ ↦ id
+    }
+  }
+  | of _ => inferInstance
+  | prod σ τ => Setoid.prod (instSetoidInterpret (σ := σ)) (instSetoidInterpret (σ := τ))
 
 @[simp]
-theorem map'_default {β : S → Type*} (f : α →ₛ β) :
-    (default : SortedTuple [] α).map' f = default := by
-  rw[Unique.uniq inferInstance ((default : SortedTuple [] α).map' f)]
+lemma prod_equiv [MSSetoid α] {xs xs' : α [^] σ} {ys ys' : α [^] ξ} :
+    instSetoidInterpret (σ := σ ⨯ ξ) (xs, ys) (xs', ys') ↔ (xs ≈ xs' ∧ ys ≈ ys') := by
+  rfl
 
+instance instMSSetoidInterpret [Fam.MSSetoid α] : MSSetoid (MapFam σ.IdxFam α) := inferInstance
 
---TODO: remove sorries
-theorem map_eq_map' {f : α →ₛ β} : f <$>ₛ xs = xs.map' f := sorry
+variable [R : MSSetoid α]
 
-theorem map_eq_listmap {β : S → Type*} (f : α →ₛ β) :
-    (f <$>ₛ xs).toList =  xs.toList.map (fun ⟨s,x⟩ => ⟨s, f s x⟩) := sorry
+lemma interpret_equiv_iff (xs ys : α [^] σ) :
+    xs ≈ ys ↔ ∀ (s : S) (v : σ.Idx s), xs.get s v ≈ ys.get s v := by
+  induction σ with
+  | nil => simp
+  | of s =>
+    constructor
+    · intro h s' v
+      cases v
+      exact h
+    · intro h
+      rw [←get_of s xs, ←get_of s ys]
+      exact h _ _
+  | prod σ τ hσ hτ =>
+    constructor
+    · intro h s v
+      cases v
+      · exact (hσ xs.1 ys.1).mp h.1 s _
+      · exact (hτ xs.2 ys.2).mp h.2 s _
+    · intro h
+      refine ⟨?_, ?_⟩
+      · exact (hσ xs.1 ys.1).mpr (fun s v ↦ h s (Idx.left v))
+      · exact (hτ xs.2 ys.2).mpr (fun s v ↦ h s (Idx.right v))
 
-end induction
+@[simp]
+lemma interpret_equiv_iff' (xs ys : σ.IdxFam →ₛ α) :
+  xs ≈ ys ↔ fromGet xs ≈ fromGet ys := by
+  simp_all only [interpret_equiv_iff, fromGet_get]
+  rfl
 
-section experiments
+local instance : Fam.MSSetoid α := R
 
-/-- Convert a SortedTuple to a dependent map -/
-def get' (xs : SortedTuple σ α) (s : S) (i : Fin σ.length) (h : s = σ.get i) : α s :=
-  h ▸ (xs.proj_type' i) ▸ (xs.getFinCast i).snd
+/-- Map an interpretation into the componentwise-quotiented interpretation
+  (componentwise `Quotient.mk`). -/
+def toQuot {σ : Signature S} (xs : α [^] σ) : (MSQuotient R)[^]σ:=
+  (Fam.MSQuotient.mk (M := α) R) <$>ₛ xs
 
-syntax:max term noWs "[" withoutPosition(term) "]ₛ" : term
-macro_rules | `($x[$i]ₛ) => `((SortedTuple.toMap $x (Fin.mk $i (by get_elem_tactic))))
+@[simp]
+lemma get_toQuot {σ : Signature S} (xs : α [^] σ) (s : S) (v : σ.Idx s) :
+    (toQuot (σ := σ) (α := α) xs).get s v
+      = Quotient.mk (s := (R.toSetoid s)) (xs.get s v) := by
+  simp only [toQuot, get_map]
+  rfl
 
---TODO: replace this (by metaprogramming?)
-/-- Evaluate a SortedTuple of length at least one at the first element. -/
-def eval₁ {α : S → Type*} {σ : List S} {s : S} (xs : SortedTuple (s :: σ) α) : α s :=
-  xs.toMap (Fin.mk 0 (by simp))
+lemma toQuot_eq {σ : Signature S} {x y : α [^] σ} : x.toQuot = y.toQuot ↔ x ≈ y := by
+  induction σ with
+  | nil => simp
+  | of _ => exact Quotient.eq
+  | prod σ₁ σ₂ h₁ h₂ =>
+    cases x
+    cases y
+    unfold toQuot
+    erw [map_prod, Prod.ext_iff, h₁, h₂]
+    rfl
 
-/-- Evaluate a SortedTuple of length at least two at the first element. -/
-def eval₂₁ {α : S → Type*} {σ : List S} {s₁ s₂ : S}
-    (xs : SortedTuple (s₁ :: (s₂ :: σ)) α) : α s₁ :=
-  xs.toMap (Fin.mk 0 (by simp))
+lemma toQuot_eq_iff_out {x : α [^] σ} {y : (α /ₛ R) [^] σ} :
+    x.toQuot = y ↔ x ≈ MSQuotient.out <$>ₛ y := by
+  induction σ with
+  | nil =>
+    simp only [mapClass_eq_map, Setoid.refl]
+  | of s =>
+    exact Quotient.mk_eq_iff_out
+  | prod σ₁ σ₂ h₁ h₂ =>
+    cases x
+    cases y
+    simp only [Prod.ext_iff]
+    exact and_congr h₁ h₂
 
-/-- Evaluate a SortedTuple of length at least two at the second element. -/
-def eval₂₂ {α : S → Type*} {σ : List S} {s₁ s₂ : S}
-    (xs : SortedTuple (s₁ :: (s₂ :: σ)) α) : α s₂ :=
-  xs.toMap (Fin.mk 1 (by simp))
+noncomputable example {σ τ : Signature S} {x : α [^] σ} {y : (α /ₛ R) [^] τ} :=
+  ((x, MSQuotient.out <$>ₛ y) : α [^] (σ ⨯ τ))
 
+lemma weird_needs_name {σ τ : Signature S} {x : α [^] σ} {y : (α /ₛ R) [^] τ} :
+    (x.toQuot, y) = Interpret.mapClass (MSQuotient.mk R) (σ := σ ⨯ τ) (x, MSQuotient.out <$>ₛ y)
+  := by
+  rw [map_prod, ←comp_map, MSQuotient.out_eq, map_id]
+  rfl
 
-end experiments
-end SortedTuple
+/--
+Multisorted analogue of Mathlib's `Quotient.finChoice`:
+turn a *tuple of quotients* into a *single quotient of representative tuples*.
+
+Noncomputable: chooses representatives via `Quotient.out`.
+-/
+noncomputable def choice {σ : Signature S} (xs : (α /ₛ R) [^] σ) :
+    Quotient (α := α[^]σ) instSetoidInterpret :=
+  ⟦MSQuotient.out <$>ₛ xs⟧
+
+/-- `choice` inverts `toQuot` up to quotient equivalence. -/
+theorem choice_toQuot {σ : Signature S} (xs : α [^] σ) :
+    choice (toQuot xs) = ⟦xs⟧ := by
+  apply Quotient.sound
+  simp_all only [interpret_equiv_iff]
+  intro s v
+  simp_all only [toQuot, get_map]
+  exact Quotient.exact (Quotient.out_eq _)
+
+/-- The representative from `choice` maps back to the original tuple of quotients. -/
+@[simp]
+theorem toQuot_out_choice {σ : Signature S} (xs : (α /ₛ R) [^] σ) :
+    (choice xs).out.toQuot = xs := by
+  induction σ with
+  | nil => rfl
+  | of _ =>
+    simp [choice, Interpret.mapClass, map, FamMapClass.toFamMap, MSQuotient.out, toQuot,
+      MSQuotient.mk]
+    exact (Quotient.out_eq _).trans (Quotient.out_eq _)
+  | prod σ τ hσ hτ =>
+    cases xs
+    rw [toQuot_eq_iff_out]
+    exact Quotient.eq_mk_iff_out.mp rfl
+
+end quotients
+
+end Interpret
+
+/-! ## Advanced Equivalences -/
+
+section interpret_equivalences
+/-!
+This section elaborates on how Interpret.get interacts with maps of Idxs,
+which will be needed in semantics.
+-/
+
+variable {α : Fam S}
+open Interpret
+
+/-- The map of interpretations induced by a SigMap on signatures. -/
+def Interpret.comap
+    {X : Fam.{v} S} {σ τ : Signature S} (f : SigMap σ τ) :
+    Interpret X τ → Interpret X σ :=
+  fun xs =>
+    Interpret.fromGet
+      ⟨fun s w => Interpret.get xs s (f s w)⟩
+
+@[simp]
+lemma comap_default {σ : Signature S} {M : Fam S} {x : M [^] σ} :
+    Interpret.comap (default : SigMap ⦃⦄ σ) x = default := rfl
+
+@[simp]
+lemma get_comap
+     {X : Fam S} {σ τ : Signature S}
+    (xs : Interpret X τ) (f : SigMap σ τ) :
+  Interpret.get (xs.comap f) = fun s w => Interpret.get xs s (f s w) := by
+  ext; simp_all [comap, fromGet_get];
+
+@[simp] lemma get_comap_incl_left
+     {X : Fam S} {σ τ : Signature S} (xs : Interpret X (σ ⨯ τ)) :
+  Interpret.get (xs.comap (SigMap.incl_left : SigMap σ (σ ⨯ τ)))
+    = fun s w => Interpret.get xs s (Idx.left w) := by
+  simp only [get_comap, SigMap.incl_left_apply, get_left]
+  rfl
+
+@[simp] lemma comap_fromGet {X : Fam S} {σ τ : Signature S}
+    (f : IdxFam τ →ₛ X) (g : SigMap σ τ) :
+  (fromGet f).comap g = fromGet (f ∘ₛ g) := by
+  ext s v
+  simp_all only [get_comap, fromGet_get, FamMap.comp_apply']
+  rfl
+
+@[simp]
+lemma fromGet_right {σ τ : Signature S} (v : IdxFam (τ ⨯ σ) →ₛ α) :
+  (fromGet v).2.get =  (v ∘ₛ SigMap.incl_right) := by
+  ext s w
+  set xs := fromGet v
+  have hv: v = (fromGet v).get := by simp
+  rw[hv]
+  change xs.2.get s w = (xs.get ∘ₛ SigMap.incl_right) s w
+  rcases xs with ⟨x, y⟩
+  simp_all only [fromGet_get, FamMap.comp_apply', SigMap.incl_right_apply, get_right]
+
+@[simp]
+lemma fromGet_left {σ τ : Signature S} (v : IdxFam (τ ⨯ σ) →ₛ α) :
+  (fromGet v).1.get =  (v ∘ₛ SigMap.incl_left) := by
+  ext s w
+  set xs := fromGet v
+  have hv: v = (fromGet v).get := by simp
+  rw[hv]
+  change xs.1.get s w = (xs.get ∘ₛ SigMap.incl_left) s w
+  rcases xs with ⟨x, y⟩
+  simp_all only [fromGet_get, FamMap.comp_apply', SigMap.incl_left_apply, get_left]
+
+@[simp] lemma get_comap_incl_right
+     {X : Fam S} {σ τ : Signature S} (xs : Interpret X (τ ⨯ σ)) :
+  Interpret.get (xs.comap (SigMap.incl_right : SigMap σ (τ ⨯ σ)))
+    = fun s w => Interpret.get xs s (Idx.right w) := by
+  simp only [get_comap, SigMap.incl_right_apply, get_right]
+  rfl
+
+/-- The equivalence on interpretations induced by a `SigEquiv` on signatures. -/
+def Interpret.EquivfromSigEquiv
+    {X : Fam S} {σ τ : Signature S} (e : SigEquiv σ τ) :
+    Interpret X σ ≃ Interpret X τ :=
+{ toFun := fun xs => xs.comap (Fam.PerSortEquivLike.inv e)
+  , invFun := fun ys => ys.comap (e : SigMap σ τ)
+  , left_inv := by
+      intro xs
+      ext s v
+      rw [get_comap, get_comap]
+      change xs.get s ((Fam.PerSortEquivLike.inv e) s (e s v)) = xs.get s v
+      exact congrArg (fun x => xs.get s x) (Fam.PerSortEquivLike.inv_apply_apply e s v)
+  , right_inv := by
+      intro ys
+      ext s v
+      rw [get_comap, get_comap]
+      change ys.get s (e s ((Fam.PerSortEquivLike.inv e) s v)) = ys.get s v
+      exact congrArg (fun x => ys.get s x) (Fam.PerSortEquivLike.apply_inv_apply e s v) }
+
+/-- Needed to simp away the messiness needed for quantification over "of s" -/
+@[simp]
+theorem nilLeft_symm_apply (s : S) :
+    ((Fam.MSEquiv.symm (Signature.SigEquiv.nilLeft ⦃s⦄) :
+      SigMap ⦃s⦄ (nil.prod ⦃s⦄)) s .var) = .right .var := by
+  rfl
+
+/-- Needed to simplify the "get" statement after using nilLeft_symm_apply -/
+@[simp]
+theorem get_right_var {X : Fam.{v} S} {s : S} {u : PUnit} {x : X s} :
+    Interpret.get ((u, x) : (nil.prod ⦃s⦄).Interpret X) s (.right .var) = x := by
+  simp_all only [get_right, get_of]
+
+end interpret_equivalences
+end Signature
+
+/-! ## DepSet tuple coercions -/
+
+namespace Fam
+
+open Signature
+open Signature.Interpret
+
+section dep_set_tuples
+
+variable {Sorts : Type u} {M : Fam Sorts}
+
+instance (S : DepSet M) {σ : Signature Sorts} : CoeTC (S.Subtype[^]σ) (M[^]σ) :=
+  ⟨fun xs => (S.subtypeVal) <$>ₛ xs⟩
+
+end dep_set_tuples
+
+end Fam
+
+end MSFirstOrder

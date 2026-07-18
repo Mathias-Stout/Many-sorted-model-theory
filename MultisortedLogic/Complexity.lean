@@ -1,23 +1,22 @@
-import ProdExpr.Semantics
-import ProdExpr.Satisfiable
+import MultisortedLogic.Semantics
+import MultisortedLogic.Satisfiable
 
 universe u v w u' w' v' z
 
 namespace MSFirstOrder
 
-variable {Sorts : Type z} {L : MSLanguage.{u, v, z} Sorts} {L' : MSLanguage Sorts}
-  {M : Fam.{w} Sorts} {N P : Fam Sorts} [L.MSStructure M] [L.MSStructure N] [L.MSStructure P]
+variable {Sorts : Type z} {L : Language.{u, v, z} Sorts} {L' : Language Sorts}
+  {M : Fam.{w} Sorts} {N P : Fam Sorts} [L.Structure M] [L.Structure N] [L.Structure P]
   {α : Fam.{u'} Sorts} {β : Fam.{v'} Sorts} {γ : Fam Sorts}
   {σ ξ η : Signature Sorts}
   {s : Sorts} {t : Sorts}
 
 
-namespace MSLanguage
+namespace Language
 open Signature Interpret
 
 
 namespace BoundedFormula
-
 
 /-- Atomic formulas -/
 inductive IsAtomic : L.BoundedFormula α σ → Prop
@@ -62,7 +61,7 @@ lemma isQF_iff_isQFRelTo_empty (φ : L.BoundedFormula α σ) : IsQF φ ↔ IsQFR
 
 /-- Abstraction to simultaneously handle with quantifiers only over certain sorts as well
   as formulas over a sublanguage on the same level -/
-class ImpClass (L : MSLanguage Sorts)
+class ImpClass (L : Language Sorts)
     (Δ : {α : Fam Sorts} → {σ : Signature Sorts} → L.BoundedFormula α σ → Prop) : Prop where
   falsum : ∀ {α} {σ}, @Δ α σ falsum
   imp : ∀ {α} {σ} (φ ψ : L.BoundedFormula α σ), Δ φ → Δ ψ → Δ (φ ⟹ ψ)
@@ -107,8 +106,6 @@ theorem ImpClass.iInf {X : Type*} [Finite X] {f : X → L.BoundedFormula α σ}
   exact hφ.choose_spec.2 ▸ hf hφ.choose
 
 open Formula Theory
-#check fully_instantiate
-
 
 -- TODO, move this to Satisfiable.lean
 private theorem bigAnd_implies_of_finset_implies {φ : L.Sentence} {T : L.Theory}
@@ -179,7 +176,7 @@ private theorem helper {φ : L.Sentence} {T : L.Theory} {Γ : L.Theory}
 theorem two_models_of_not_in_impclass (φ : L.Formula α) (T : L.Theory)
     (hT : ∀ (ψ : L.Formula α), Δ ψ → ¬ (T ⊨ᵇ φ ⇔ ψ)) :
     -- Hacky attempt at trying to make the universe levels line up
-    ∃ (M N : MSModelType.{u, v, z, max (max (max u u') v) z} T) (v : α →ₛ M) (w : α →ₛ N),
+    ∃ (M N : ModelType.{u, v, z, max (max (max u u') v) z} T) (v : α →ₛ M) (w : α →ₛ N),
       φ.Realize v ∧ ¬ φ.Realize w ∧
     ∀ (ψ : L.Formula α), Δ ψ → (ψ.Realize v ↔ ψ.Realize w) := by
   -- Setup: work as much as possible with sentences over an extended Language
@@ -234,7 +231,7 @@ theorem two_models_of_not_in_impclass (φ : L.Formula α) (T : L.Theory)
   -- Extract model N from the satisfiable theory (Tₐ ∪ Γ ∪ {∼ φₐ})
   let ⟨N⟩ := this
   -- N is an L[[α]]-structure modelling Tₐ ∪ Γ ∪ {∼ φₐ}
-  letI : L.MSStructure N.Carrier := (L.lhomWithConstants α).reduct N.Carrier
+  letI : L.Structure N.Carrier := (L.lhomWithConstants α).reduct N.Carrier
   -- N models Tₐ, hence T
   have hNTₐ : N.Carrier ⊨ Tₐ :=
     N.is_model.mono (Set.subset_union_left.trans Set.subset_union_left)
@@ -251,8 +248,8 @@ theorem two_models_of_not_in_impclass (φ : L.Formula α) (T : L.Theory)
   have hw_not_φ : ¬ φ.Realize w := by
     rw [Sentence.realize_not] at hN_not_φ
     exact fun h => hN_not_φ ((realize_equivSentence N.Carrier φ).2 h)
-  -- Build N as a T.MSModelType
-  let N' : T.MSModelType := Theory.MSModelType.mk N.Carrier
+  -- Build N as a T.ModelType
+  let N' : T.ModelType := Theory.ModelType.mk N.Carrier
     (struc := (L.lhomWithConstants α).reduct N.Carrier) (is_model := hNT)
     (nonempty' := N.nonempty')
   /-
@@ -287,7 +284,7 @@ theorem two_models_of_not_in_impclass (φ : L.Formula α) (T : L.Theory)
         letI : (Tₐ ∪ ↑A₀ ∪ {φₐ}).Model M := by
           rw [Theory.model_union_iff, Theory.model_union_iff, Theory.model_singleton_iff]
           exact ⟨⟨M.is_model, hMA₀⟩ ,hMφ⟩
-        exact ⟨MSModelType.mk M.Carrier⟩
+        exact ⟨ModelType.mk M.Carrier⟩
       -- χ ∈ Δ, up to equivalence between sentences and formulas
       have hχ_in_Δ : Δ (equivSentence.symm χ) := by
         rw [χ_def, equivSentence_symm_bigAnd]
@@ -320,8 +317,8 @@ theorem two_models_of_not_in_impclass (φ : L.Formula α) (T : L.Theory)
       · exact Set.mem_union_right _ hxφ
   -- Extract model M from (Tₐ ∪ A ∪ {φₐ})
   let ⟨M⟩ := hA_sat
-  letI : L[[α]].MSStructure M.Carrier := M.struc
-  letI : L.MSStructure M.Carrier := (L.lhomWithConstants α).reduct M.Carrier
+  letI : L[[α]].Structure M.Carrier := M.struc
+  letI : L.Structure M.Carrier := (L.lhomWithConstants α).reduct M.Carrier
   have hMTₐ : M.Carrier ⊨ Tₐ :=
     M.is_model.mono (Set.subset_union_left.trans Set.subset_union_left)
   haveI hMT : M.Carrier ⊨ T := (LHom.onTheory_model (φ := L.lhomWithConstants α) T).1 hMTₐ
@@ -332,7 +329,7 @@ theorem two_models_of_not_in_impclass (φ : L.Formula α) (T : L.Theory)
   let v : α →ₛ M.Carrier := ⟨fun s a => (L.con s a : M.Carrier s)⟩
   have hv_φ : φ.Realize v := by
     exact (realize_equivSentence M.Carrier φ).1 hM_φ
-  let M' : T.MSModelType := MSModelType.mk M.Carrier
+  let M' : T.ModelType := ModelType.mk M.Carrier
     (struc := (L.lhomWithConstants α).reduct M.Carrier) (is_model := hMT)
     (nonempty' := M.nonempty')
   -- M and N agree on all Δ-formulas (using that Δ is closed under negation)
@@ -381,6 +378,6 @@ theorem two_models_of_not_in_impclass (φ : L.Formula α) (T : L.Theory)
 
 end BoundedFormula
 
-end MSLanguage
+end Language
 
 end MSFirstOrder

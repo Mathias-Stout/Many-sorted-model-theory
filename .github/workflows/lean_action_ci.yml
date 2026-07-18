@@ -1,7 +1,6 @@
 name: Lean Action CI
 
-on:
-  push:
+on:  
   pull_request:
   workflow_dispatch:
 

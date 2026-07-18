@@ -2,22 +2,23 @@
 Based on the corresponding Mathlib file by Aaron Anderson
 Released under Apache 2.0 license as described in the file LICENSE.
 -/
-import ProdExpr.Quotients
+import MultisortedLogic.ElementaryMapsMS
+import MultisortedLogic.Quotients
 import Mathlib.Order.Filter.Finite
 import Mathlib.Order.Filter.Germ.Basic
 import Mathlib.Order.Filter.Ultrafilter.Defs
-import ProdExpr.SemanticTactics
+import MultisortedLogic.SemanticTactics
 
 /-!
 # Ultraproducts and Łoś's Theorem
 
 ## Main Definitions
 
-- `FirstOrder.Language.Ultraproduct.Structure` is the ultraproduct structure on `Filter.Product`.
+- `MSFirstOrder.Language.Ultraproduct.Structure` is the ultraproduct structure on `Filter.Product`.
 
 ## Main Results
 
-- Łoś's Theorem: `FirstOrder.Language.Ultraproduct.sentence_realize`. An ultraproduct models a
+- Łoś's Theorem: `MSFirstOrder.Language.Ultraproduct.sentence_realize`. An ultraproduct models a
   sentence `φ` if and only if the set of structures in the product that model `φ` is in the
   ultrafilter.
 
@@ -28,17 +29,17 @@ ultraproduct, Los's theorem
 
 universe u v w z
 
-open MSFirstOrder Filter Fam
+namespace MSFirstOrder
 
 variable {Sorts : Type z} {ι : Type*} (M : ι → Fam Sorts) (F : Filter ι)
 
-namespace MSFirstOrder
+open Filter Fam
 
-namespace MSLanguage
+namespace Language
 
-open MSStructure Fam Signature Interpret
+open Structure Fam Signature Interpret
 
-variable {L : MSLanguage.{u, v} Sorts} [i : ∀ a, L.MSStructure (M a)]
+variable {L : Language.{u, v} Sorts} [i : ∀ a, L.Structure (M a)]
 
 /-! ## Reduced Products
 
@@ -46,12 +47,12 @@ The reduced product construction works for any filter, not just ultrafilters.
 The ultrafilter property is only needed for Łoś's theorem.
 -/
 
-namespace MSStructure
+namespace Structure
 
 /-- The reduced product setoid: two functions are equivalent iff they're eventually equal. -/
 @[reducible]
-instance ReducedProductSetoid : MSSetoid (piFam M) :=
-  MSSetoid.mk (fun s => F.productSetoid (fun a => M a s))
+def ReducedProductSetoid {Sorts : Type z} {ι : Type*} (M : ι → Fam Sorts) (F : Filter ι)
+  : MSSetoid (piFam M) := MSSetoid.mk (fun s => F.productSetoid (fun a => M a s))
 
 /-- The reduced product carrier: the quotient of product functions by eventual equality. -/
 abbrev ReducedProduct := MSQuotient (ReducedProductSetoid (M := M) (F := F))
@@ -110,6 +111,33 @@ lemma pi_lift_setoid {M : ι → Fam Sorts} {F : Filter ι} {σ : Signature Sort
     · exact h'.1
     · exact h'.2
 
+lemma pi_lift_diag {M : Fam Sorts} {σ : Signature Sorts} {xs : M [^] σ} :
+    ∀ (i : ι), pi_lift ((⟨fun _ m _ ↦ m⟩ : M →ₛ piFam fun _ ↦ M) <$>ₛ xs) i = xs := by
+  intro i
+  induction σ with
+  | nil => rfl
+  | of _ => rfl
+  | prod _ _ h₁ h₂ =>
+    exact Prod.ext h₁ h₂
+
+lemma pi_lift_map {M N : ι → Fam Sorts} {σ : Signature Sorts} {xs : piFam M [^] σ} {fi : Π (i : ι),
+   M i →ₛ N i} :
+    ∀ (i : ι), pi_lift ((⟨fun s xs i ↦ fi i s (xs i)⟩ : piFam M →ₛ piFam N) <$>ₛ xs) i = fi i <$>ₛ
+      pi_lift xs i := by
+  induction σ with
+  | nil =>
+    intro i
+    rfl
+  | of _ =>
+    intro i
+    rfl
+  | prod _ _ h₁ h₂ =>
+    intro i
+    obtain ⟨x₁, x₂⟩ := xs
+    simp only [pi_lift, mapClass_map_prod]
+    rw [h₁, h₂]
+
+
 /-- The projection FamMap from a product to a coordinate -/
 def proj {M : ι → Fam Sorts} (a : ι) : piFam M →ₛ M a := ⟨fun _ x => x a⟩
 
@@ -157,9 +185,9 @@ lemma interpret_equiv_iff_eventually_eq {σ : Signature Sorts}
         ⟩
 
 instance prestructure :
-    L.MSPrestructure (ReducedProductSetoid (M := M) (F := F)) :=
+    L.Prestructure (ReducedProductSetoid (M := M) (F := F)) :=
   { (ReducedProductSetoid (M := M) (F := F)) with
-    toMSStructure := {
+    toStructure := {
         funMap {σ} s f x := fun a =>
             funMap f (pi_lift x a)
         RelMap := fun {_} r x =>
@@ -176,27 +204,27 @@ instance prestructure :
 lemma pi_lift_term_realize {σ τ : Signature Sorts} {β : Fam Sorts} {u : Ultrafilter ι}
     (v : β →ₛ piFam M) (xs : piFam M [^] τ)
     (ts : L.Term (β ⊕ₛ τ.IdxFam) σ) (i : ι) :
-  pi_lift (@Term.realize _ _ _ (prestructure M u).toMSStructure _ _ (sumElim v xs.get) ts) i =
+  pi_lift (@Term.realize _ _ _ (prestructure M u).toStructure _ _ (sumElim v xs.get) ts) i =
     Term.realize (sumElim { toFun := fun s b ↦ v s b i } (pi_lift xs i).get) ts := by
   induction ts with
   | nil => rfl
   | var s b =>
-    rcases b with _ | xs
-    · simp [pi_lift]
-    · simp [pi_lift, get_pi_lift]
+    rcases b with b | w
+    · rfl
+    · exact get_pi_lift _ w i
   | prod t₁ t₂ h₁ h₂ =>
     simp only [pi_lift, Term.realize, Prod.mk.injEq]
     exact ⟨h₁, h₂⟩
   | func f ts h =>
-    simp only [pi_lift, Term.realize_func, id_eq, funMap, h]
+    exact congrArg (funMap f) h
 
 noncomputable
-instance «structure» : L.MSStructure (ReducedProduct (M := M) (F := F)) :=
-  MSLanguage.quotientMSStructure (L := L) (ps := prestructure M F)
+instance «structure» : L.Structure (ReducedProduct (M := M) (F := F)) :=
+  Language.quotientStructure (L := L) (ps := prestructure M F)
 
 end ReducedProduct
 
-end MSStructure
+end Structure
 
 /-! ## Ultraproducts
 
@@ -209,15 +237,16 @@ variable (u : Ultrafilter ι)
 abbrev Ultraproduct : Fam Sorts := ReducedProduct M (u : Filter ι)
 
 noncomputable
-instance Ultraproduct.structure : L.MSStructure (Ultraproduct M u) :=
+instance Ultraproduct.structure : L.Structure (Ultraproduct M u) :=
   ReducedProduct.structure M u
 
 namespace Ultraproduct
 
 variable {M} {u}
 
-instance instPiFamStructure : L.MSStructure (piFam M) :=
-  (ReducedProduct.prestructure M (u : Filter ι)).toMSStructure
+@[reducible]
+def instPiFamStructure : L.Structure (piFam M) :=
+  (ReducedProduct.prestructure M (u : Filter ι)).toStructure
 
 /-- Ultraproduct equality for interpretations: two tuples of quotients are equal
     iff they're equal componentwise (which means eventually equal pointwise). -/
@@ -229,7 +258,7 @@ theorem ultraproduct_interpret_eq_iff {σ : Signature Sorts}
   simp only [Interpret.ext_iff', Interpret.get_toQuot]
   constructor
   · intro h s v
-    simpa only using Quotient.exact (h s v)
+    exact Quotient.exact (h s v)
   · intro h s v
     apply Quotient.sound
     exact h s v
@@ -322,8 +351,65 @@ instance instNonemptyUltraproduct (s : Sorts) :
     Nonempty (MSQuotient (ReducedProductSetoid M (u : Filter ι)) s) :=
   ⟨MSQuotient.mk _ s (fun _ => Classical.choice inferInstance)⟩
 
+def diagonal (M : Fam Sorts) [∀ s, Nonempty (M s)] [L.Structure M] :
+    M ↪ₑ[L] Ultraproduct (fun _ ↦ M) u where
+  toFun := MSQuotient.mk _ ∘ₛ ⟨fun s m i ↦ m⟩
+  map_boundedFormula' φ xs := by
+    have : (default : EmptyFam →ₛ Ultraproduct (fun i ↦ M) u) = MSQuotient.mk _ ∘ₛ default := by
+      ext s x
+      exact x.elim
+    rw [this, comp_map]
+    have : ∀ (i : ι), (⟨fun s b ↦ (default : EmptyFam →ₛ piFam fun i ↦ M) s b i⟩ : EmptyFam →ₛ M)
+      = default := by intro i; ext s e; exact e.elim
+    -- This erw is currently necessary because the goal here uses the unfolded
+    -- toQuot. This should be changed
+    erw [boundedFormula_realize]
+    simp only [pi_lift_diag, this, eventually_const]
+
+def map {N : ι → Fam Sorts} [∀ i, L.Structure (N i)] (fs : Π (i : ι), (M i ↪ₑ[L] N i)) :
+    Ultraproduct M u ↪ₑ[L] Ultraproduct N u where
+  toFun := ⟨fun s ↦ Quotient.map (Pi.map fun i ↦ fs i s)
+    (by
+      intro _ _ hab
+      exact u.sets_of_superset hab fun i hi ↦ by
+        rw [Set.mem_setOf_eq] at hi
+        exact congrArg (fun x => (fs i) s x) hi)⟩
+  map_boundedFormula' {σ} φ xs := by
+    have : ∀ s i, Nonempty (N i s) := fun s i => ⟨fs i s  (Nonempty.some inferInstance)⟩
+    rw [←toQuot_out_choice xs (R := _)]
+    unfold toQuot
+    have : ∀ (M : ι → Fam Sorts),  MSQuotient.mk _ ∘ₛ default =
+        (default : EmptyFam →ₛ Ultraproduct M u) :=
+      fun _ ↦ emptyDomUniqueMap.uniq _
+    rw [←this, ←this, ←Interpret.comp_map]
+    conv =>
+      lhs; rhs; lhs; unfold MSQuotient.mk; simp [FamMap.comp];
+      enter [1]
+      ext s m
+      change (Quotient.mk _ ∘ Pi.map _) _
+    change φ.Realize _
+      ((MSQuotient.mk (ReducedProductSetoid N u) ∘ₛ (⟨fun s xs ↦ _⟩ : piFam M →ₛ piFam N))
+        <$>ₛ (xs.choice (R := _)).out)
+      ↔ φ.Realize _ _
+    rw [comp_map]
+    erw [boundedFormula_realize, boundedFormula_realize]
+    rw [iff_def]
+    simp only [←Filter.eventually_and, ←u.eventually_imp]
+    simp only [←iff_def]
+    have := fun i ↦ (fs i).map_boundedFormula' φ
+    apply u.mem_of_superset u.univ_sets
+    intro i _
+    simp only [Set.mem_setOf_eq]
+    have this' : (⟨fun s b ↦ (default : EmptyFam →ₛ piFam M) s b i⟩ : EmptyFam →ₛ M i)
+        = default := emptyDomUniqueMap.uniq _
+    rw [this', ←this, ←propext_iff]
+    congr
+    · ext _ x
+      exact x.elim
+    · erw [pi_lift_map]
+
 end Ultraproduct
 
-end MSLanguage
+end Language
 
 end MSFirstOrder

@@ -1,23 +1,21 @@
 /-
-Based on the corresponding Mathlib file by Aaron Anderson.
+Based on the corresponding Mathlib file by Aaron Anderson
 Released under Apache 2.0 license as described in the file LICENSE.
 -/
-import ProdExpr.ElementarySubstructures
-import ProdExpr.Encoding
-
-universe u u' v z w w'
+import MultisortedLogic.ElementarySubstructures
+import MultisortedLogic.Encoding
 
 /-!
 # Skolem Functions and Downward Löwenheim–Skolem (Many-Sorted)
 
 ## Main Definitions
 
-- `MSFirstOrder.MSLanguage.skolem₁` is a language consisting of Skolem functions for another
+- `MSFirstOrder.Language.skolem₁` is a language consisting of Skolem functions for another
   language.
 
 ## Main Results
 
-- `MSFirstOrder.MSLanguage.exists_elementarySubstructure_card_eq` is the Downward Löwenheim–Skolem
+- `MSFirstOrder.Language.exists_elementarySubstructure_card_eq` is the Downward Löwenheim–Skolem
   theorem: If `s` is a family of sets in an `L`-structure `M` and `κ` an infinite cardinal such that
   `max (#(Σ s, A s), L.card) ≤ κ` and `κ ≤ #(Σ s, M s)`, then `M` has an elementary substructure
   containing `A` of cardinality `κ` in each sort.
@@ -27,15 +25,17 @@ universe u u' v z w w'
 - Use `skolem₁` recursively to construct an actual Skolemization of a language.
 -/
 
+universe u u' v z w w'
+
 namespace MSFirstOrder
 
-namespace MSLanguage
+namespace Language
 
-open MSStructure Cardinal Signature Interpret
+open Structure Cardinal Signature Interpret
 
 variable {Sorts : Type z}
-variable (L : MSLanguage.{u, v, z} Sorts) {M : Fam.{w} Sorts}
-  [L.MSStructure M] [∀ s, Nonempty (M s)]
+variable (L : Language.{u, v, z} Sorts) {M : Fam.{w} Sorts}
+  [L.Structure M] [∀ s, Nonempty (M s)]
 
 /-- A language consisting of Skolem functions for another language.
 Called `skolem₁` because it is the first step in building a Skolemization of a language.
@@ -43,14 +43,14 @@ For each bounded formula `φ` with bound variables of signature `σ.prod (.of s)
 a function symbol of arity `σ` returning sort `s`, which will be interpreted as a Skolem
 function witnessing the existential quantifier over sort `s`. -/
 @[simps]
-def skolem₁ : MSLanguage Sorts :=
+def skolem₁ : Language Sorts :=
   ⟨fun σ s => L.BoundedFormula Fam.EmptyFam (σ.prod (.of s)), fun _ => Empty⟩
 
 variable {L}
 
 /-- The structure assigning each function symbol of `L.skolem₁` to a Skolem function generated with
 choice. -/
-noncomputable instance skolem₁Structure : L.skolem₁.MSStructure M :=
+noncomputable instance skolem₁Structure : L.skolem₁.Structure M :=
   ⟨fun {_σ _s} φ x => Classical.epsilon fun a => φ.Realize default ⟨x, a⟩,
    fun {_} r => Empty.elim r⟩
 
@@ -72,12 +72,14 @@ theorem card_skolem₁_functions_le :
   apply Cardinal.mk_le_of_injective
     (f := fun ⟨s, σ, φ⟩ => ⟨σ.prod (.of s), φ⟩)
   intro ⟨s₁, σ₁, φ₁⟩ ⟨s₂, σ₂, φ₂⟩ h
-  simp only [Sigma.mk.injEq] at h
-  obtain ⟨hprod, hφ⟩ := h
   -- From σ₁.prod (.of s₁) = σ₂.prod (.of s₂), we get σ₁ = σ₂ and s₁ = s₂
-  cases hprod
-  simp only [heq_eq_eq] at hφ
-  simp only [skolem₁_Functions, hφ]
+  injection h with hprod hφ
+  injection hprod with h1 h2
+  injection h2 with h3
+  subst h1
+  subst h3
+  cases hφ
+  rfl
 
 lemma add_le_of_le_of_le_of_infinite
   {X Y Z : Cardinal}
@@ -127,7 +129,7 @@ lemma hinj : ∀ s σ, Function.Injective (fun g : L.Functions σ s => F s σ g)
     and_self]
 
 def bundledInj
-  {Sorts : Type z} {L : MSLanguage Sorts} :
+  {Sorts : Type z} {L : Language Sorts} :
   ((i₁ : Signature Sorts) × (i : Sorts) ×  L.Functions i₁ i) ↪
     (Σ i : Signature Sorts, L.BoundedFormula Fam.EmptyFam i) :=
 by
@@ -149,7 +151,7 @@ by
     rfl
 
 def inj_prodSingleton
-  {Sorts : Type z} {L : MSLanguage Sorts} :
+  {Sorts : Type z} {L : Language Sorts} :
   ((i₁ : Signature Sorts) × (i : Sorts) × L.BoundedFormula Fam.EmptyFam (i₁ ⨯ ⦃i⦄)) ↪
     (Σ i : Signature Sorts, L.BoundedFormula Fam.EmptyFam i) :=
 by
@@ -222,20 +224,19 @@ theorem card_functions_sum_skolem₁ :
     -- convert #(Σ i, ...) to the sum of cardinals
     simpa [α, Cardinal.mk_sigma] using hα
 
-theorem card_functions_sum_skolem₁_le [DecidableEq Sorts] :
+theorem card_functions_sum_skolem₁_le :
     #( (η : Signature Sorts) × (s : Sorts)  × (L.sum L.skolem₁).Functions η s) ≤
     max ℵ₀ (lift #Sorts + L.card) := by
   apply le_trans (b:= #(Σ σ, L.BoundedFormula Fam.EmptyFam σ))
   · exact card_functions_sum_skolem₁
   · refine _root_.trans BoundedFormula.card_le' (lift_le.{max u v}.1 ?_)
     apply  (le_trans (lift_le.mpr BoundedFormula.BFCode_card))
-    simp_all only [mk_sigma, mk_eq_zero, sum_const, lift_uzero, lift_zero, mul_zero, add_zero, lift_max, lift_aleph0,
-      lift_add, lift_lift, ge_iff_le, le_refl]
+    simp_all only [mk_sigma, mk_eq_zero, sum_const, lift_uzero, lift_zero, mul_zero, add_zero,
+      lift_max, lift_aleph0, lift_add, lift_lift, ge_iff_le, le_refl]
 
 /-- Bounded formulas with empty free variables are countable when the language is countable. -/
 instance instCountableBoundedFormulaEmpty
     [Countable Sorts]
-    [DecidableEq Sorts]
     [Countable (Σ η s, L.Functions η s)]
     [Countable (Σ σ, L.Relations σ)] :
     Countable (Σ σ, L.BoundedFormula Fam.EmptyFam σ) := by
@@ -247,7 +248,6 @@ instance instCountableBoundedFormulaEmpty
 /-- The Skolem function symbols are countable when the language is countable. -/
 instance instCountableSkolem₁Functions
     [Countable Sorts]
-    [DecidableEq Sorts]
     [Countable (Σ η s, L.Functions η s)]
     [Countable (Σ σ, L.Relations σ)] :
     Countable (Σ σ s, L.skolem₁.Functions σ s) := by
@@ -255,18 +255,19 @@ instance instCountableSkolem₁Functions
       (fun (x : Σ σ s, L.skolem₁.Functions σ s) =>
         (⟨x.1.prod (.of x.2.1), x.2.2⟩ : Σ σ, L.BoundedFormula Fam.EmptyFam σ)) := by
     intro ⟨s₁, σ₁, φ₁⟩ ⟨s₂, σ₂, φ₂⟩ h
-    simp only [Sigma.mk.injEq] at h
-    obtain ⟨hprod, hφ⟩ := h
-    cases hprod
-    simp only [skolem₁_Functions, Sigma.mk.injEq, heq_eq_eq, true_and]
-    simp_all only [heq_eq_eq]
+    injection h with hprod hφ
+    injection hprod with h1 h2
+    injection h2 with h3
+    subst h1
+    subst h3
+    cases hφ
+    rfl
   exact Function.Injective.countable hinj
 
 /-- The sum language `L.sum L.skolem₁` has countable function symbols
     when the original language has countable function symbols and relations. -/
 instance instCountableSumSkolem₁Functions
     [Countable Sorts]
-    [DecidableEq Sorts]
     [Countable (Σ η s, L.Functions η s)]
     [Countable (Σ σ, L.Relations σ)] :
     Countable (Σ σ s, (L.sum L.skolem₁).Functions σ s) := by
@@ -302,8 +303,8 @@ theorem skolem₁_reduct_isElementary (S : (L.sum L.skolem₁).Substructure M) :
   have hmem : funMap φ' coe_xs ∈ S s := by
     apply S.fun_mem φ' coe_xs
     intro t i
-    simp only [coe_xs, get_map]
-    exact (xs.get t i).2
+    exact Set.mem_of_eq_of_mem
+      (congrFun (DFunLike.congr_fun (get_map xs S.subtype) t) i) (xs.get t i).2
   refine ⟨⟨funMap φ' coe_xs, hmem⟩, ?_⟩
   /- The Skolem function chooses a witness via epsilon
     By definition of skolem₁Structure, funMap (Sum.inr φ) x =
@@ -360,7 +361,7 @@ open Fam Signature Substructure
   Note: The precise universe constraints differ from the single-sorted case due to the
   additional sort universe `z`. The statement below is a placeholder that needs careful
   universe management to be fully correct. -/
-theorem exists_elementarySubstructure_card_eq [DecidableEq Sorts]
+theorem exists_elementarySubstructure_card_eq
     (A : DepSet M) (κ : Cardinal.{w'}) (h1 : ℵ₀ ≤ κ)
     (h2 : lift.{w'} #(Σ s, A s) ≤ lift.{max z w} κ)
     (h3 : lift #Sorts + lift.{w'} L.card ≤ lift.{max u v z} κ)
@@ -409,16 +410,14 @@ theorem exists_elementarySubstructure_card_eq [DecidableEq Sorts]
     intro xs h
     unfold S Substructure.closure elementarySkolem₁Reduct
     simp_all only [ge_iff_le, mk_sigma, lift_sum, Set.coe_setOf, DepSet.sup_eq_union,
-      DepSet.le_eq_subset, DepSet.union_subset_iff, LHom.coe_substructureReduct, aleph0_le_lift, A']
+      DepSet.union_subset_iff, LHom.coe_substructureReduct, aleph0_le_lift, A']
     obtain ⟨s, x⟩ := xs
     simp_all only [DepSet.mem_sigma, Substructure.sInf_apply, Set.mem_setOf_eq,
       DepSetLike.carrier_toDepSet, Set.mem_iInter, and_imp]
     intro X hi hi'
     change x ∈ X s
-    rw[DepSet.subset_intro_mem_eq] at hi
-    simp_all only [DepSetLike.carrier_toDepSet]
-    apply hi
-    simp_all only
+    apply DepSet.subset_intro_mem_eq.mp hi
+    exact h
   have hA'_inf:  ℵ₀ ≤ #((s : Sorts) × ↑(A'.carrier s)) := by
                   rw[←lift_le.{w'}]
                   apply le_trans (b:= lift.{max w z} κ)
@@ -558,14 +557,13 @@ theorem exists_elementarySubstructure_card_eq [DecidableEq Sorts]
       simp_all only [mk_sigma, lift_sum, ge_iff_le, heq_eq_eq, Subtype.mk.injEq, aleph0_le_lift]
       obtain ⟨val, property⟩ := hx
       obtain ⟨val_1, property_1⟩ := hy
-      subst hsub
-      simp only
+      exact Subtype.ext (show val = val_1 from Subtype.ext_iff.mp hsub)
 
 
 
 
 
 
-end MSLanguage
+end Language
 
 end MSFirstOrder

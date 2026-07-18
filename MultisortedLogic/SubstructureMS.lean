@@ -4,9 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 import Mathlib.Data.Fintype.Order
 import Mathlib.Order.Closure
-import ProdExpr.Semantics
-import ProdExpr.Encoding
-import ProdExpr.DepSet
+import MultisortedLogic.Semantics
+import MultisortedLogic.Encoding
+import MultisortedLogic.DepSet
 /-!
 # Multisorted Substructures
 
@@ -18,17 +18,17 @@ universe u v w z
 
 namespace MSFirstOrder
 
-namespace MSLanguage
+namespace Language
 
-variable {Sorts : Type z} {L : MSLanguage.{u, v, z} Sorts}
+variable {Sorts : Type z} {L : Language.{u, v, z} Sorts}
 variable {M : Fam.{w} Sorts} {N : Fam Sorts} {P : Fam Sorts}
-variable [i: L.MSStructure M] [L.MSStructure N] [L.MSStructure P]
+variable [i : L.Structure M] [L.Structure N] [L.Structure P]
 
-open MSStructure Signature Interpret Fam DepSet
+open Structure Signature Interpret Fam DepSet
 
 section ClosedUnder
 
-variable {σ : Signature Sorts} {t : Sorts} (f : L.Functions σ t) (A: DepSet M)
+variable {σ : Signature Sorts} {t : Sorts} (f : L.Functions σ t) (A : DepSet M)
 
 /-- Indicates that a family of sets in a given structure is closed under a function symbol. -/
 def ClosedUnder : Prop :=
@@ -93,7 +93,8 @@ instance subStructureDepSetLike : DepSetLike (L.Substructure M) M where
     rfl
 
 @[simp]
-lemma closed_under {σ t} {f : L.Functions σ t} (A : L.Substructure M) : ClosedUnder f (A : DepSet M) := by
+lemma closed_under {σ t} {f : L.Functions σ t} (A : L.Substructure M) :
+  ClosedUnder f (A : DepSet M) := by
   exact A.fun_mem f
 
 /-- Two substructures are equal if they have the same elements in each sort. -/
@@ -139,11 +140,12 @@ theorem copy_eq {s : DepSet M} (hs : s = S) : S.copy s hs = S := by
 theorem constants_mem {s : Sorts} (c : L.Constants s) : (c : M s) ∈ S s := by
   have h : funMap c (default : M[^](Signature.nil)) ∈ S s :=
     S.fun_mem c default (by intro s i; exact isEmptyElim i)
-  simpa only using h
+  simp_all only [DepSetLike.carrier_toDepSet, PUnit.default_eq_unit]
+  exact h
 
 
 /-- Membership of a multisorted tuple in a substructure. -/
-def Mem {σ : Signature Sorts} (S : L.Substructure M) (x : M[^]σ) : Prop :=
+def Mem {σ : Signature Sorts} (S : L.Substructure M) (x : M [^] σ) : Prop :=
   ∀ s (i : σ.Idx s), x.get s i ∈ S s
 
 end Substructure
@@ -154,7 +156,7 @@ theorem Term.realize_mem {α : Fam Sorts} {σ : Signature Sorts} (t : L.Term α 
   | var s a =>
       intro s' i
       cases i
-      simpa only using h s a
+      simp_all only [DepSetLike.carrier_toDepSet, realize_var, get_of]
   | func f ts ih =>
       intro s' i
       cases i
@@ -163,9 +165,11 @@ theorem Term.realize_mem {α : Fam Sorts} {σ : Signature Sorts} (t : L.Term α 
       intro s' i
       cases i with
       | left i' =>
-          simpa only using ih₁ s' i'
+          simpa only [DepSetLike.carrier_toDepSet, realize_prod, get_left,
+            realize_getLeafTerm] using ih₁ s' i'
       | right i' =>
-          simpa only using ih₂ s' i'
+          simpa only [DepSetLike.carrier_toDepSet, realize_prod, get_right,
+            realize_getLeafTerm] using ih₂ s' i'
   | nil =>
       intro s' i
       exact isEmptyElim i
@@ -175,7 +179,7 @@ namespace Substructure
 open Set
 
 theorem le_def {S T : L.Substructure M} : S ≤ T ↔ ∀ s, S s ⊆ T s := by
-  simp
+  simp only [DepSetLike.le_def, ge_iff_le, DepSet.le_eq_subset, DepSetLike.carrier_toDepSet]
   change S ⊆ T ↔ ∀ (s : Sorts), S.carrier s ⊆ T.carrier s
   exact subset_intro_mem_eq (S:= S.toDepSet) (T:= T.toDepSet)
 
@@ -217,7 +221,6 @@ theorem mem_inf {S₁ S₂ : L.Substructure M} {s : Sorts} {x : M s} :
   Iff.rfl
 
 instance instInfSet : InfSet (L.Substructure M) :=
-
   ⟨fun S =>
     { carrier := fun s => ⋂ T ∈ S, (T s)
       fun_mem := fun {σ t} f x hx => by
@@ -324,7 +327,7 @@ theorem closure_le {S : L.Substructure M} :
   · intro h
     exact ((closure L).gc A S).mpr ((DepSet.le_def).2 h)
 
-@[gcongr]
+@[gcongr only]
 theorem closure_mono {A B : DepSet M} (h : ∀ s, A s ⊆ B s) :
     closure L A ≤ closure L B :=
   (closure_le (L := L) (A := A) (S := closure L B)).2
@@ -335,7 +338,7 @@ theorem closure_eq_of_le {S : L.Substructure M} (h₁ : ∀ s, A s ⊆ S s) (h�
   le_antisymm ((closure_le (L := L) (A := A) (S := S)).2 h₁) h₂
 
 /-- The closure of a family of sets is the range of term realization. -/
-theorem coe_closure_eq_range_term_realize (A: DepSet M) :
+theorem coe_closure_eq_range_term_realize (A : DepSet M) :
     (closure L A : DepSet M) =
       fun s => Set.range (fun t : L.Term A (.of s) =>
         t.realize A.subtypeVal) := by
@@ -372,24 +375,21 @@ theorem coe_closure_eq_range_term_realize (A: DepSet M) :
       apply Term.realize_mem (S := closure L A) (t := t) (xs := A.subtypeVal)
       intro s a
       exact (subset_closure (L := L) (A := A) s) a.2
-    simpa only using (hmem s Signature.Idx.var)
+    exact hmem s Signature.Idx.var
   have hEq : closure L A = S := closure_eq_of_le (L := L) (A := A) (S := S) hA hS
   funext s
   ext x
   constructor
-  · intro hx
-    have hxS : x ∈ S s := by simpa [hEq] using hx
-    simpa [S] using hxS
-  · intro hx
-    have hxS : x ∈ S s := by simpa [S] using hx
-    simpa [hEq] using hxS
+  · intro hx; rw [hEq] at hx; exact hx
+  · intro hx; rw [hEq]; exact hx
 
-instance small_closure (A: DepSet M) (s : Sorts)
-    [Small.{max u z} (Σ s, A s)] : Small.{max u z} (closure L A s) := by
+instance small_closure (A : DepSet M) (s : Sorts)
+    [i : Small.{max u z} (Σ s, A s)] : Small.{max u z} (closure L A s) := by
   classical
   let α : Fam Sorts := A.Subtype
   haveI : Small.{max u z} (Σ s, α s) := by
-    simpa only using (inferInstance : Small.{max u z} (Σ s, A s))
+    simp_all only [α]
+    exact i
   haveI : Small.{max u z} (L.TCode α) := by
     dsimp only [TCode]
     infer_instance
@@ -419,7 +419,7 @@ theorem mem_closure_iff_exists_term {A : DepSet M} {s : Sorts} {x : M s} :
 
 open Cardinal
 
-theorem lift_card_closure_le_card_term (A: DepSet M) (s : Sorts) :
+theorem lift_card_closure_le_card_term (A : DepSet M) (s : Sorts) :
     lift.{max u w z} #(closure L A s) ≤
      #(L.Term A (.of s)) := by
   let coe := A.subtypeVal
@@ -475,7 +475,7 @@ theorem lift_card_closure_le_sigma_term (A: DepSet M) (s : Sorts) :
 /-- The lifted closure cardinality is bounded by the sigma of all term cardinalities.
 This is a more direct bound that avoids universe complications with the full
 cardinality theorem. For applications, combine with `Term.card_le` when universes align. -/
-theorem lift_card_closure_le_sigma_term (A: DepSet M) (s : Sorts) :
+theorem lift_card_closure_le_sigma_term (A : DepSet M) (s : Sorts) :
     lift.{max u w z} #(closure L A s) ≤ #(Σ σ, L.Term A σ) := by
   have h1 : lift.{max u w z} #(closure L A s) ≤ #(L.Term A (.of s)) :=
     lift_card_closure_le_card_term (i := i) A s
@@ -486,7 +486,7 @@ theorem lift_card_closure_le_sigma_term (A: DepSet M) (s : Sorts) :
   exact h1.trans h2
 
 
-theorem lift_card_sigma_closure_le_sigma_term (A: DepSet M) :
+theorem lift_card_sigma_closure_le_sigma_term (A : DepSet M) :
     lift.{u} #(Σ s, closure L A s) ≤ #(Σ σ, L.Term A σ) := by
   classical
   have hterm :
@@ -552,10 +552,10 @@ theorem lift_card_sigma_closure_le_sigma_term (A: DepSet M) :
 --TODO: Simplify this proof!
 /-- The cardinality of the total closure is bounded by ℵ₀ or the sum of the
 cardinalities of the generators and function symbols (with appropriate universe lifts).
-This is the multi-sorted generalization of `FirstOrder.Language.Substructure.lift_card_closure_le`.
- -/
-theorem lift_card_closure_le {A : DepSet M}
-    [DecidableEq Sorts]  :
+This is the multi-sorted generalization of
+`MSFirstOrder.Language.Substructure.lift_card_closure_le`.
+-/
+theorem lift_card_closure_le {A : DepSet M} :
     lift.{u} #(Σ s, closure L A s) ≤
       max ℵ₀ (lift.{u} #(Σ s, A s) + lift.{w} #(Σ η s, L.Functions η s)) := by
   refine (lift_card_sigma_closure_le_sigma_term (i := i) A).trans ?_
@@ -575,7 +575,6 @@ theorem lift_card_closure_le {A : DepSet M}
             sum fun i : Sorts =>
               sum fun σ : Signature Sorts =>
                 lift.{w, u} #(L.Functions σ i)
-
           -- lift R up (in the Sorts-universe parameter), and push the lift through both sums
           have h :
               lift.{z, _} R
@@ -609,7 +608,7 @@ theorem lift_card_closure_le {A : DepSet M}
 
 /-- If the sigma of terms is countable, then the closure is countable.
 This provides a practical way to establish countability of closures. -/
-theorem countable_closure_of_countable_sigma_term (A: DepSet M)
+theorem countable_closure_of_countable_sigma_term (A : DepSet M)
     [Countable (Σ σ, L.Term A σ)] :
     Countable (Σ s , closure L A s) := by
   rw [← Cardinal.mk_le_aleph0_iff, ← lift_le_aleph0.{max z w, u}]
@@ -617,8 +616,8 @@ theorem countable_closure_of_countable_sigma_term (A: DepSet M)
 
 
 /-- If the generators and function symbols are both countable, then the closure is countable. -/
-theorem countable_closure [Countable Sorts] [DecidableEq Sorts]
-    (A: DepSet M)
+theorem countable_closure [Countable Sorts]
+    (A : DepSet M)
     [Countable (Σ t, A t)] [Countable (Σ η t, L.Functions η t)] :
     Countable (Σ s , closure L A s) := by
   -- TCode is countable since it's a sum of the two countable sigma types
@@ -631,15 +630,13 @@ theorem countable_closure [Countable Sorts] [DecidableEq Sorts]
   -- Terms inject into signatures via TreeEncode, hence countable
   haveI : Countable (Σ σ, L.Term A σ) :=
     Function.Injective.countable Term.TreeEncode_injective
-
   exact countable_closure_of_countable_sigma_term A
 
-lemma mem_closed_iff (A: DepSet M) :
+lemma mem_closed_iff (A : DepSet M) :
     A ∈ (closure L).closed ↔ ∀ {σ t}, ∀ f : L.Functions σ t, ClosedUnder f A := by
   refine ⟨?_, ?_⟩
   · intro h σ t f
-    have h' : closure L A = A := by
-      simpa only using h
+    have h' : closure L A = A := h
     simpa only [h'] using (closure L A).closed_under
   · intro h
     have h' : closure L A = (⟨⟨A⟩, h⟩ : L.Substructure M) := by
@@ -656,7 +653,7 @@ lemma mem_closed_iff (A: DepSet M) :
       ext s
       simp_all only [DepSetLike.carrier_toDepSet]
       rfl
-    simpa only using h''
+    exact h''
 
 @[simp]
 lemma closed (S : L.Substructure M) : (closure L).closed S.toDepSet := by
@@ -666,19 +663,19 @@ lemma closed (S : L.Substructure M) : (closure L).closed S.toDepSet := by
 
 variable (L)
 
-lemma mem_closed_of_isRelational [L.IsRelational] (A: DepSet M) :
+lemma mem_closed_of_isRelational [L.IsRelational] (A : DepSet M) :
     A ∈ (closure L).closed :=
   (mem_closed_iff (L := L) (A := A)).2 (by
     intro σ t f
     exact (isEmptyElim f))
 
 @[simp]
-lemma closure_eq_of_isRelational [L.IsRelational] (A: DepSet M) :
+lemma closure_eq_of_isRelational [L.IsRelational] (A : DepSet M) :
     (closure L A : DepSet M) = A :=
   LowerAdjoint.closure_eq_self_of_mem_closed _ (mem_closed_of_isRelational L A)
 
 @[simp]
-lemma mem_closure_iff_of_isRelational [L.IsRelational] (A: DepSet M) {s : Sorts} (m : M s) :
+lemma mem_closure_iff_of_isRelational [L.IsRelational] (A : DepSet M) {s : Sorts} (m : M s) :
     m ∈ closure L A s ↔ m ∈ A s := by
   simp only [closure_eq_of_isRelational]
 
@@ -698,7 +695,7 @@ theorem closure_induction {A : DepSet M} {p : ∀ s, M s → Prop} {s : Sorts} {
   have hclosure : closure L A ≤ S :=
     (closure_le (L := L) (A := A) (S := S)).2 (fun s x hx => Hs s x hx)
   have hxS : x ∈ S s := (Substructure.le_def.1 hclosure) s hx
-  simpa [S] using hxS
+  exact hxS
 
 /-- If `A` is dense in `M`, it suffices to prove a predicate on `A` and show it is closed under
 function symbols. -/
@@ -730,8 +727,7 @@ theorem closure_eq (S : L.Substructure M) : closure L S = S :=
   (Substructure.gi L M).l_u_eq S
 
 @[simp]
-theorem closure_empty : closure L ∅ = (⊥ : L.Substructure M) := by
-  simpa only using (Substructure.gi L M).gc.l_bot
+theorem closure_empty : closure L ∅ = (⊥ : L.Substructure M) := (Substructure.gi L M).gc.l_bot
 
 @[simp]
 theorem closure_univ : closure L univ = (⊤ : L.Substructure M) := by
@@ -751,8 +747,7 @@ instance small_bot (s : Sorts) : Small.{max u z} ((⊥ : L.Substructure M) s) :=
     (small_closure (L := L) (A := ∅) (s := s))
 
 theorem closure_union (A B : DepSet M) :
-    closure L (A ∪ B) = closure L A ⊔ closure L B := by
-  simpa only [Set.sup_eq_union] using (Substructure.gi L M).gc.l_sup
+    closure L (A ∪ B) = closure L A ⊔ closure L B := (Substructure.gi L M).gc.l_sup
 
 theorem closure_iUnion {ι} (A : ι → DepSet M) :
     closure L (iUnion A) = ⨆ i, closure L (A i) := by
@@ -811,7 +806,7 @@ theorem iSup_eq_closure {ι : Sort*} (S : ι → L.Substructure M) :
     (closure_iUnion (L := L) (A := fun i => (S i : DepSet M))).symm
 
 -- This proof uses the fact that `Substructure.closure` is finitary.
-theorem mem_iSup_of_directed {ι : Type*} [Nonempty ι]  {S : ι → L.Substructure M}
+theorem mem_iSup_of_directed {ι : Type*} [Nonempty ι] {S : ι → L.Substructure M}
     (hS : Directed (· ≤ ·) S) {s : Sorts} {x : M s} :
     x ∈ (⨆ i, S i) s ↔ ∃ i, x ∈ S i s := by
   refine ⟨?_, fun ⟨i, hi⟩ => (Substructure.le_def.1 (le_iSup (fun i => S i) i)) s hi⟩
@@ -899,8 +894,8 @@ def map (φ : M →[L] N) (S : L.Substructure M) : L.Substructure N where
     have hxy : (φ <$>ₛ y) = x := by
       ext s i
       have hget' : (φ <$>ₛ y).get s i = φ s (y.get s i) := by
-        simp_all only [DepSetLike.carrier_toDepSet, FamMap.mk_apply, fromGet_get, implies_true, get_map,
-          FamMap.comp_apply', pre, y]
+        simp_all only [DepSetLike.carrier_toDepSet, FamMap.mk_apply, fromGet_get, implies_true,
+          get_map, FamMap.comp_apply', pre, y]
         apply hpre_eq
       have hy : y.get s i = pre s i := by
         simp only [fromGet_get, y]
@@ -908,8 +903,8 @@ def map (φ : M →[L] N) (S : L.Substructure M) : L.Substructure N where
     refine ⟨funMap f y, S.fun_mem f y hy_mem, ?_⟩
     have hmap : φ t (funMap f y) = funMap f (φ <$>ₛ y) :=
       Hom.map_fun (φ := φ) (f := f) (x := y)
-    simp_all only [DepSetLike.carrier_toDepSet, FamMap.mk_apply, fromGet_get, implies_true, mapClass_eq_map,
-      HomClass.map_fun, pre, y]
+    simp_all only [DepSetLike.carrier_toDepSet, FamMap.mk_apply, fromGet_get, implies_true,
+      mapClass_eq_map, HomClass.map_fun, pre, y]
 
 
 @[simp]
@@ -1007,7 +1002,7 @@ theorem comap_top (f : M →[L] N) : (⊤ : L.Substructure N).comap f = ⊤ :=
 theorem map_id (S : L.Substructure M) : S.map (Hom.id L M) = S := by
   ext s x
   simp only [map, Hom.id_apply, image_id', DepSetLike.carrier_toDepSet]
-  rfl
+  exact ⟨fun ⟨y, hy, hyx⟩ => hyx ▸ hy, fun hx => ⟨x, hx, rfl⟩⟩
 
 theorem map_closure (f : M →[L] N) (A: DepSet M) :
     (closure L A).map f = closure L (⟨fun s => f s '' A s⟩ : DepSet N) := by
@@ -1126,7 +1121,7 @@ end GaloisInsertion
 
 /-! ### Induced structures and embeddings -/
 
-instance inducedStructure {S : L.Substructure M} : L.MSStructure S := by
+instance inducedStructure {S : L.Substructure M} : L.Structure S := by
   classical
   refine
     { funMap := ?_
@@ -1165,7 +1160,7 @@ theorem subtype_apply (S : L.Substructure M) {s : Sorts} (x : S.Subtype s) :
 @[simp]
 theorem realize_boundedFormula_top {α : Fam Sorts} {σ : Signature Sorts}
     {φ : L.BoundedFormula α σ} {v : α →ₛ (⊤ : L.Substructure M)}
-    {xs : (⊤ : L.Substructure M).Subtype[^]σ} :
+    {xs : (⊤ : L.Substructure M).Subtype [^] σ} :
     φ.Realize v xs ↔
       φ.Realize ((((⊤ : DepSet M).subtypeVal) ∘ₛ v) : (s : Sorts) → α s → M s)
         (((⊤ : DepSet M).subtypeVal) <$>ₛ xs) := by
@@ -1174,7 +1169,7 @@ theorem realize_boundedFormula_top {α : Fam Sorts} {σ : Signature Sorts}
   suffices h : ∀ {σ : Signature Sorts} (φ : L.BoundedFormula α σ)
       (v : α →ₛ S) (xs : S.Subtype[^]σ),
       φ.Realize v xs ↔ φ.Realize (g ∘ₛ v) (g <$>ₛ xs) by
-    simpa only [S, g, DepSet.subtypeVal] using h φ v xs
+    exact h φ v xs
   intro σ φ
   induction φ with
   | falsum => intros; rfl
@@ -1265,8 +1260,8 @@ end Substructure
 
 namespace LHom
 
-variable {Sorts : Type z} {L L' : MSLanguage Sorts}
-variable {M : Fam.{w} Sorts} [L.MSStructure M] [L'.MSStructure M]
+variable {Sorts : Type z} {L L' : Language Sorts}
+variable {M : Fam.{w} Sorts} [L.Structure M] [L'.Structure M]
 
 /-- Reduces the language of a substructure along a language hom. -/
 def substructureReduct (φ : L →ᴸ L') [φ.IsExpansionOn M] :
@@ -1301,7 +1296,8 @@ end LHom
 
 namespace Substructure
 
-/-- Turns any substructure containing a constant family `A` into an `L[[fun t => A t]]`-substructure. -/
+/-- Turns any substructure containing a constant family `A` into an
+`L[[fun t => A t]]`-substructure. -/
 def withConstants (S : L.Substructure M) {A : DepSet M} (h : ∀ s, A s ⊆ S s) :
     L[[DepSet.Subtype A]].Substructure M where
   carrier := S.carrier
@@ -1313,7 +1309,7 @@ def withConstants (S : L.Substructure M) {A : DepSet M} (h : ∀ s, A s ⊆ S s)
     | inr f =>
         cases σ with
         | nil =>
-            simpa only using h t f.2
+            exact h t f.2
         | of =>
             exact isEmptyElim f
         | prod =>
@@ -1344,8 +1340,7 @@ theorem subset_closure_withConstants {A : DepSet M} :
   intro t a ha
   refine (mem_closure (L := L[[DepSet.Subtype A]]) (A := s) (s := t) (x := a)).2 ?_
   intro S hS
-  simpa only using constants_mem (L := L[[DepSet.Subtype A]]) (c := Sum.inr ⟨a, ha⟩)
-
+  exact constants_mem (L := L[[DepSet.Subtype A]]) (c := Sum.inr ⟨a, ha⟩)
 
 theorem closure_withConstants_eq {A s : ∀ t, Set (M t)} :
     closure (L[[DepSet.Subtype (⟨A⟩ : DepSet M)]]) (⟨s⟩ : DepSet M) =
@@ -1433,7 +1428,6 @@ theorem comp_codRestrict (f : M →[L] N) (g : N →[L] P) (p : L.Substructure P
     ((codRestrict p g h).comp f : M →[L] p) =
       codRestrict p (g.comp f) (fun s x => h s (f s x)) := by
   ext s x
-
   rfl
 
 @[simp]
@@ -1631,13 +1625,13 @@ def codRestrict (p : L.Substructure N) (f : M ↪[L] N) (h : ∀ s x, f s x ∈ 
         Interpret.map (↑coe) (Interpret.map (↑toSub) x) = Interpret.map (↑(f.toFun)) x := by
       calc
         Interpret.map (↑coe) (Interpret.map (↑toSub) x) =
-            Interpret.map (↑(coe ∘ₛ toSub)) x := by
-              simpa only using (Interpret.comp_map (φ := toSub) (ψ := coe) (xs := x)).symm
+        Interpret.map (↑(coe ∘ₛ toSub)) x :=
+          (Interpret.comp_map (φ := toSub) (ψ := coe) (xs := x)).symm
         _ = Interpret.map (↑(f.toFun)) x := by
               simp only [hcomp]
     change RelMap r (Interpret.map (↑coe) (Interpret.map (↑toSub) x)) ↔ RelMap r x
     rw [hmap]
-    simpa using (f.map_rel' r x)
+    exact f.map_rel' r x
 
 @[simp]
 theorem codRestrict_apply (p : L.Substructure N) (f : M ↪[L] N) {h} {s : Sorts} (x : M s) :
@@ -1689,9 +1683,9 @@ noncomputable def substructureEquivMap (f : M ↪[L] N) (s : L.Substructure M) :
     apply Subtype.ext
     exact (Classical.choose_spec x.2).2
   · intro σ t fn x
-    simpa using (codRestrict (s.map f.toHom) (f.domRestrict s) hs).map_fun' fn x
+    exact (codRestrict (s.map f.toHom) (f.domRestrict s) hs).map_fun' fn x
   · intro σ r x
-    simpa using (codRestrict (s.map f.toHom) (f.domRestrict s) hs).map_rel' r x
+    exact (codRestrict (s.map f.toHom) (f.domRestrict s) hs).map_rel' r x
 
 @[simp]
 theorem substructureEquivMap_apply (f : M ↪[L] N) (p : L.Substructure M) {s : Sorts}
@@ -1735,12 +1729,12 @@ noncomputable def equivRange (f : M ↪[L] N) : M ≃[L] f.toHom.range where
     exact Classical.choose_spec x.2
   map_fun' := by
     intro σ t fn x
-    simpa using
+    exact
       (codRestrict f.toHom.range f (fun s x => f.toHom.mem_range_self (s := s) (x := x))).map_fun'
         fn x
   map_rel' := by
     intro σ r x
-    simpa using
+    exact
       (codRestrict f.toHom.range f (fun s x => f.toHom.mem_range_self (s := s) (x := x))).map_rel'
         r x
 
@@ -1752,7 +1746,8 @@ theorem equivRange_apply (f : M ↪[L] N) {s : Sorts} (x : M s) :
 
 @[simp]
 theorem subtype_equivRange (f : M ↪[L] N) :
-    (Substructure.subtype (L := L) (M := N) (S := f.toHom.range)).comp f.equivRange.toEmbedding = f := by
+    (Substructure.subtype (L := L) (M := N)
+    (S := f.toHom.range)).comp f.equivRange.toEmbedding = f := by
   ext s x
   rfl
 
@@ -1804,6 +1799,6 @@ lemma subtype_comp_inclusion {S T : L.Substructure M} (h : S ≤ T) :
 
 end Substructure
 
-end MSLanguage
+end Language
 
 end MSFirstOrder

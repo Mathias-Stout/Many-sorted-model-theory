@@ -2,18 +2,18 @@
 Based on the corresponding Mathlib file by Aaron Anderson
 Released under Apache 2.0 license as described in the file LICENSE.
 -/
-import ProdExpr.Ultraproducts
-import ProdExpr.Skolem
-import ProdExpr.Bundled
+import MultisortedLogic.Ultraproducts
+import MultisortedLogic.Skolem
+import MultisortedLogic.Bundled
 
 universe u v z u' v' w w' w''
 
 namespace MSFirstOrder
-namespace MSLanguage
+namespace Language
 
-variable {Sorts : Type z} {L : MSLanguage.{u, v, z} Sorts} {L' : MSLanguage Sorts}
+variable {Sorts : Type z} {L : Language.{u, v, z} Sorts} {L' : Language Sorts}
   {M : Fam.{w} Sorts} {N : Fam Sorts} {P : Fam Sorts}
-  [i : L.MSStructure M] [L.MSStructure N] [L.MSStructure P]
+  [i : L.Structure M] [L.Structure N] [L.Structure P]
   {α : Fam.{u'} Sorts} {β : Fam.{v'} Sorts} {γ : Fam Sorts}
   {s : Sorts} {t : Sorts}
 
@@ -21,7 +21,7 @@ namespace Theory
 variable (T : L.Theory)
 /-- A theory is satisfiable if a structure models it. -/
 def IsSatisfiable : Prop :=
-  Nonempty (MSModelType.{u, v, z, (max u v z)} T)
+  Nonempty (ModelType.{u, v, z, (max u v z)} T)
 
 /-- A theory is finitely satisfiable if all of its finite subtheories are satisfiable. -/
 def IsFinitelySatisfiable (T : L.Theory) : Prop :=
@@ -46,7 +46,7 @@ theorem Model.isSatisfiable [∀ {s : Sorts}, Nonempty (M s)] [M ⊨ T] :
   haveI : ∀ s, Small.{max u v z} (S s) := hSmall
   let e : S ≃ₛ N := Fam.MSEquiv.fromEquivs (fun s => equivShrink (S s))
   -- Transfer the structure to N
-  letI : L.MSStructure N := Equiv.inducedStructure e
+  letI : L.Structure N := Equiv.inducedStructure e
   -- The equivalence becomes an L-isomorphism
   let φ : S ≃[L] N := Equiv.inducedStructureEquiv e
   -- Transfer the theory model via the isomorphism
@@ -54,12 +54,12 @@ theorem Model.isSatisfiable [∀ {s : Sorts}, Nonempty (M s)] [M ⊨ T] :
   -- Nonemptiness transfers through the equivalence
   haveI hNonempty : ∀ {s}, Nonempty (N s) := fun {s} =>
     Nonempty.map (equivShrink (S s)) (hSNonempty s)
-  exact ⟨MSModelType.mk N (struc := Equiv.inducedStructure e) (is_model := hModel)
+  exact ⟨ModelType.mk N (struc := Equiv.inducedStructure e) (is_model := hModel)
     (nonempty' := hNonempty)⟩
 
 theorem IsSatisfiable.mono (h : T'.IsSatisfiable) (hs : T ⊆ T') : T.IsSatisfiable := by
   obtain ⟨M⟩ := h
-  exact ⟨MSModelType.mk M.Carrier (struc := M.struc)
+  exact ⟨ModelType.mk M.Carrier (struc := M.struc)
     (is_model := @Theory.Model.mono _ _ _ M.struc T T' M.is_model hs)
     (nonempty' := M.nonempty')⟩
 
@@ -74,13 +74,13 @@ theorem isSatisfiable_iff_isFinitelySatisfiable {T : L.Theory} :
     classical
       -- For each finite subtheory T0, get the model directly
       let getModel : (T0 : Finset T) →
-        MSModelType (T0.map (Function.Embedding.subtype fun x => x ∈ T) : L.Theory) :=
+        ModelType (T0.map (Function.Embedding.subtype fun x => x ∈ T) : L.Theory) :=
         fun T0 =>
           (h (T0.map (Function.Embedding.subtype fun x => x ∈ T)) T0.map_subtype_subset).some
       -- The ultrafilter on finite subsets of T
       let u := Ultrafilter.of (Filter.atTop : Filter (Finset T))
       -- Register structure and nonemptiness as instances (use letI for transparency)
-      letI hstruc : ∀ T0, L.MSStructure ((getModel T0).Carrier) := fun T0 => (getModel T0).struc
+      letI hstruc : ∀ T0, L.Structure ((getModel T0).Carrier) := fun T0 => (getModel T0).struc
       letI hnonempty : ∀ T0 s, Nonempty ((getModel T0).Carrier s) :=
         fun T0 s => (getModel T0).nonempty'
       have h' : @Theory.Model _ L (Ultraproduct (fun T0 => (getModel T0).Carrier) u)
@@ -97,7 +97,7 @@ theorem isSatisfiable_iff_isFinitelySatisfiable {T : L.Theory} :
           exact ⟨hφ, hs (Finset.mem_singleton_self _)⟩
         exact @Theory.realize_sentence_of_mem _ _ _
           (getModel s).struc _ (getModel s).is_model _ hmem
-      exact ⟨MSModelType.mk (Ultraproduct (fun T0 => (getModel T0).Carrier) u)
+      exact ⟨ModelType.mk (Ultraproduct (fun T0 => (getModel T0).Carrier) u)
         (struc := Ultraproduct.structure _ u) (is_model := h')
         (nonempty' := Ultraproduct.instNonemptyUltraproduct _)⟩⟩
 
@@ -112,7 +112,7 @@ theorem isSatisfiable_directed_union_iff {ι : Type*} [Nonempty ι] {T : ι → 
 /-- If a theory has a model where a given sort admits enough distinct constants, then the theory
 with those constants is satisfiable. -/
 theorem isSatisfiable_union_distinctConstantsAtSortTheory_of_card_le (T : L.Theory) {t : Sorts}
-    (s : Set (α t)) (M : Fam.{w'} Sorts) [L.MSStructure M] [M ⊨ T]
+    (s : Set (α t)) (M : Fam.{w'} Sorts) [L.Structure M] [M ⊨ T]
     [∀ s, Nonempty (M s)]
     (h : Cardinal.lift.{w'} (Cardinal.mk s) ≤ Cardinal.lift.{u'} (Cardinal.mk (M t))) :
     ((L.lhomWithConstants α).onTheory T ∪ L.distinctConstantsAtSortTheory t s).IsSatisfiable := by
@@ -121,14 +121,14 @@ theorem isSatisfiable_union_distinctConstantsAtSortTheory_of_card_le (T : L.Theo
   rw [Cardinal.lift_mk_le'] at h
   let f : s ↪ M t := h.some
   let g : α t → M t := Function.extend (fun x : s => (x : α t)) (fun x => f x) default
-  let hconstStr : (constantsOn α).MSStructure M :=
+  let hconstStr : (constantsOn α).Structure M :=
     constantsOn.structure ⟨ fun s' a => by
       classical
       by_cases hst : s' = t
       · cases hst
         exact g a
       · exact Classical.choice (inferInstance )⟩
-  letI : (constantsOn α).MSStructure M := hconstStr
+  letI : (constantsOn α).Structure M := hconstStr
   have : M ⊨ (L.lhomWithConstants α).onTheory T ∪ L.distinctConstantsAtSortTheory t s := by
     refine ((LHom.onTheory_model _ _).2 inferInstance).union ?_
     rw [model_distinctConstantsAtSortTheory]
@@ -136,20 +136,19 @@ theorem isSatisfiable_union_distinctConstantsAtSortTheory_of_card_le (T : L.Theo
     have hcon_apply (i : α t) : (L.con t i : M t) = g i := by
       -- interpret constants via the chosen `constantsOn` structure
       change
-        @MSStructure.funMap _ (L.sum (constantsOn α)) M _ _ _ (Sum.inr i : L[[α]].Constants t)
+        @Structure.funMap _ (L.sum (constantsOn α)) M _ _ _ (Sum.inr i : L[[α]].Constants t)
           (default : Signature.nil.Interpret M) = g i
       have hsum :
-          MSStructure.funMap (L := L.sum (constantsOn α)) (Sum.inr i : L[[α]].Constants t)
+          Structure.funMap (L := L.sum (constantsOn α)) (Sum.inr i : L[[α]].Constants t)
               (default : Signature.nil.Interpret M) =
-            MSStructure.funMap (L := constantsOn α) (σ := ⦃⦄) i default  := by
-        simpa using
+            Structure.funMap (L := constantsOn α) (σ := ⦃⦄) i default  := by
+        simpa only using
           congrArg (fun fn => fn (default : Signature.nil.Interpret M))
-            (funMap_sumInr (L₁ := L) (L₂ := constantsOn α) (S' := M)
-              (σ := Signature.nil) (t := t) (f := (i : (constantsOn α).Functions .nil t)))
-      have hconst : @MSStructure.funMap _ (constantsOn α) M hconstStr ⦃⦄ _ i default = g i := by
+            (funMap_sumInr (L₁ := L) (L₂ := constantsOn α) (S' := M) (σ := Signature.nil) (t := t)
+              (f := (i : (constantsOn α).Functions .nil t)))
+      have hconst : @Structure.funMap _ (constantsOn α) M hconstStr ⦃⦄ _ i default = g i := by
         change dite (t = t) (fun h : t = t => h ▸ g i) _ = g i
         exact dif_pos rfl
-
       exact hsum.trans hconst
     have hab' : g a = g b := by
       exact (hcon_apply a).symm.trans (hab.trans (hcon_apply b))
@@ -169,7 +168,7 @@ theorem isSatisfiable_union_distinctConstantsAtSortTheory_of_card_le (T : L.Theo
       (T := (L.lhomWithConstants α).onTheory T ∪ L.distinctConstantsAtSortTheory t s) (M := M)
 
 theorem isSatisfiable_union_distinctConstantsAtSortTheory_of_infinite (T : L.Theory) {t : Sorts}
-    (s : Set (α t)) (M : Fam.{w'} Sorts) [L.MSStructure M] [M ⊨ T]
+    (s : Set (α t)) (M : Fam.{w'} Sorts) [L.Structure M] [M ⊨ T]
     [∀ s, Nonempty (M s)] [Infinite (M t)] :
     ((L.lhomWithConstants α).onTheory T ∪ L.distinctConstantsAtSortTheory t s).IsSatisfiable := by
   classical
@@ -201,7 +200,7 @@ theorem isSatisfiable_union_distinctConstantsAtSortTheory_of_infinite (T : L.The
 /-- If a theory has a model with enough room in each sort for a `DepSet` of constants, then the
 expanded theory asserting those constants are distinct is satisfiable. -/
 theorem isSatisfiable_union_distinctConstantsTheory_of_card_le (T : L.Theory)
-    (S : DepSet α) (M : Fam.{w'} Sorts) [L.MSStructure M] [M ⊨ T]
+    (S : DepSet α) (M : Fam.{w'} Sorts) [L.Structure M] [M ⊨ T]
     [∀ s, Nonempty (M s)]
     (h : ∀ s, Cardinal.lift.{w'} (Cardinal.mk (S s)) ≤ Cardinal.lift.{u'} (Cardinal.mk (M s))) :
     ((L.lhomWithConstants α).onTheory T ∪ L.distinctConstantsTheory S).IsSatisfiable := by
@@ -214,26 +213,27 @@ theorem isSatisfiable_union_distinctConstantsTheory_of_card_le (T : L.Theory)
     ⟨fun s a =>
       Function.extend (fun x : S s => (x : α s)) (fun x => f s x)
         (fun _ : α s => Classical.choice (inferInstance : Nonempty (M s))) a⟩
-  let hconstStr : (constantsOn α).MSStructure M := constantsOn.structure c
-  letI : (constantsOn α).MSStructure M := hconstStr
+  let hconstStr : (constantsOn α).Structure M := constantsOn.structure c
+  letI : (constantsOn α).Structure M := hconstStr
   have : M ⊨ (L.lhomWithConstants α).onTheory T ∪ L.distinctConstantsTheory S := by
     refine ((LHom.onTheory_model _ _).2 inferInstance).union ?_
     rw [model_distinctConstantsTheory]
     intro t a ha b hb hab
     have hcon_apply (i : α t) : (L.con t i : M t) = c t i := by
       change
-        @MSStructure.funMap _ (L.sum (constantsOn α)) M _ ⦃⦄ _ (Sum.inr i)
+        @Structure.funMap _ (L.sum (constantsOn α)) M _ ⦃⦄ _ (Sum.inr i)
           (default : Signature.nil.Interpret M) = c t i
       have hsum :
-          MSStructure.funMap (L := L.sum (constantsOn α)) (σ := ⦃⦄) (Sum.inr i)
+          Structure.funMap (L := L.sum (constantsOn α)) (σ := ⦃⦄) (Sum.inr i)
               (default : Signature.nil.Interpret M) =
-            MSStructure.funMap (L := constantsOn α) (σ := ⦃⦄) i (default : Signature.nil.Interpret M) := by
-        simpa using
+            Structure.funMap (L := constantsOn α) (σ := ⦃⦄) i (default : Signature.nil.Interpret M)
+             := by
+        simpa only using
           congrArg (fun fn => fn (default : Signature.nil.Interpret M))
-            (funMap_sumInr (L₁ := L) (L₂ := constantsOn α) (S' := M)
-              (σ := Signature.nil) (t := t) (f := (i : (constantsOn α).Functions .nil t)))
+            (funMap_sumInr (L₁ := L) (L₂ := constantsOn α) (S' := M) (σ := Signature.nil) (t := t)
+              (f := (i : (constantsOn α).Functions .nil t)))
       have hconst :
-          @MSStructure.funMap _ (constantsOn α) M hconstStr ⦃⦄ _ i
+          @Structure.funMap _ (constantsOn α) M hconstStr ⦃⦄ _ i
               (default : Signature.nil.Interpret M) = c t i := by
         simp only [PUnit.default_eq_unit, Fam.FamMap.mk_apply, c]
         rfl
@@ -257,7 +257,7 @@ theorem isSatisfiable_union_distinctConstantsTheory_of_card_le (T : L.Theory)
 /-- If `M` is infinite at every sort where `S` is nonempty, then the constants in `S` can be made
 pairwise distinct (within each sort) over `M`. -/
 theorem isSatisfiable_union_distinctConstantsTheory_of_infinite_on_nonempty_sorts (T : L.Theory)
-    (S : DepSet α) (M : Fam.{w'} Sorts) [L.MSStructure M] [M ⊨ T]
+    (S : DepSet α) (M : Fam.{w'} Sorts) [L.Structure M] [M ⊨ T]
     [∀ s, Nonempty (M s)]
     (hInf : ∀ s, (S s).Nonempty → Infinite (M s)) :
     ((L.lhomWithConstants α).onTheory T ∪ L.distinctConstantsTheory S).IsSatisfiable := by
@@ -324,7 +324,7 @@ theorem isSatisfiable_union_distinctConstantsTheory_of_infinite_on_nonempty_sort
 /-- If every sort of a model is infinite, then any `DepSet` of constants can be made pairwise
 distinct (within each sort) over that model. -/
 theorem isSatisfiable_union_distinctConstantsTheory_of_infinite (T : L.Theory)
-    (S : DepSet α) (M : Fam.{w'} Sorts) [L.MSStructure M] [M ⊨ T]
+    (S : DepSet α) (M : Fam.{w'} Sorts) [L.Structure M] [M ⊨ T]
     [∀ s, Nonempty (M s)] [∀ s, Infinite (M s)] :
     ((L.lhomWithConstants α).onTheory T ∪ L.distinctConstantsTheory S).IsSatisfiable := by
   apply isSatisfiable_union_distinctConstantsTheory_of_infinite_on_nonempty_sorts
@@ -335,23 +335,24 @@ theorem isSatisfiable_union_distinctConstantsTheory_of_infinite (T : L.Theory)
 /-- Any theory with an infinite model in a fixed sort has arbitrarily large models
 in the sum of sorts. -/
 theorem exists_large_model_of_infinite_model (T : L.Theory) (t : Sorts) (κ : Cardinal.{w})
-    (M : Fam.{w'} Sorts) [L.MSStructure M] [M ⊨ T] [∀ s, Nonempty (M s)]
+    (M : Fam.{w'} Sorts) [L.Structure M] [M ⊨ T] [∀ s, Nonempty (M s)]
     [Infinite (M t)] :
-    ∃ N : Theory.MSModelType.{u, v, z, max u v z w} T,
+    ∃ N : Theory.ModelType.{u, v, z, max u v z w} T,
       Cardinal.lift.{max u v z w} κ ≤
         Cardinal.lift.{w} (Cardinal.mk (Σ s, N.Carrier s)) := by
   classical
   let α' : Fam.{w} Sorts := ⟨fun s => if h : s = t then κ.out else PUnit⟩
   obtain ⟨N⟩ :=
-    (isSatisfiable_union_distinctConstantsAtSortTheory_of_infinite (L := L) (α := α') (T := T) (t := t)
+    (isSatisfiable_union_distinctConstantsAtSortTheory_of_infinite (L := L) (α := α') (T := T)
+      (t := t)
       (s := (Set.univ : Set (α' t))) (M := M))
-  letI : L[[α']].MSStructure N.Carrier := N.struc
-  letI : L.MSStructure N.Carrier := (L.lhomWithConstants α').reduct N.Carrier
+  letI : L[[α']].Structure N.Carrier := N.struc
+  letI : L.Structure N.Carrier := (L.lhomWithConstants α').reduct N.Carrier
   have hT' : N.Carrier ⊨ (L.lhomWithConstants α').onTheory T :=
     @Theory.Model.mono _ _ _ N.struc _ _ N.is_model Set.subset_union_left
   haveI hT : N.Carrier ⊨ T := (LHom.onTheory_model (φ := L.lhomWithConstants α') T).1 hT'
   refine
-    ⟨MSModelType.mk N.Carrier (struc := (L.lhomWithConstants α').reduct N.Carrier)
+    ⟨ModelType.mk N.Carrier (struc := (L.lhomWithConstants α').reduct N.Carrier)
       (is_model := hT) (nonempty' := N.nonempty'), ?_⟩
   have hdistinct :
       N.Carrier ⊨ L.distinctConstantsAtSortTheory t (Set.univ : Set (α' t)) :=
@@ -398,13 +399,13 @@ open Cardinal
 
 /-- A version of the Downward Löwenheim–Skolem theorem for many-sorted structures, measured by
 the cardinality of `Σ s, M s`. -/
-theorem exists_elementaryEmbedding_card_eq_of_le [DecidableEq Sorts]
-    (M : Fam.{w'} Sorts) [L.MSStructure M] [∀ s, Nonempty (M s)]
+theorem exists_elementaryEmbedding_card_eq_of_le
+    (M : Fam.{w'} Sorts) [L.Structure M] [∀ s, Nonempty (M s)]
     (κ : Cardinal.{w}) (h1 : ℵ₀ ≤ κ)
     (h2 : Cardinal.lift (#Sorts) + Cardinal.lift.{w} L.card ≤
       Cardinal.lift.{max u v z} κ)
     (h3 : Cardinal.lift.{max w' z} κ ≤ Cardinal.lift.{w} (Cardinal.mk (Σ s, M s))) :
-    ∃ S : MSStructureType.{u, v, z, w} L, Nonempty (S ↪ₑ[L] M) ∧
+    ∃ S : StructureType.{u, v, z, w} L, Nonempty (S ↪ₑ[L] M) ∧
       (#(Σ s, S.1 s)) = Cardinal.lift.{z} κ := by
   obtain ⟨S, _, hS⟩ := exists_elementarySubstructure_card_eq L ∅ κ h1 (by simp) h2 h3
   have hSmallSigma : Small.{w} (Σ s, S.1 s) := by
@@ -414,14 +415,15 @@ theorem exists_elementaryEmbedding_card_eq_of_le [DecidableEq Sorts]
   have hSmallSort : ∀ s, Small.{w} (Sf s) := by
     intro s
     haveI : Small.{w} (Σ s', Sf s') := by
-      simpa [Sf] using hSmallSigma
+      simp only [Sf]
+      exact hSmallSigma
     refine small_of_injective
       (f := fun x : Sf s => (Sigma.mk s x : Σ s', Sf s')) ?_
     intro x y hxy
     cases hxy
     rfl
-  letI : L.MSStructure Sf := by
-    simpa [Sf] using (ElementarySubstructure.inducedMSStructure (L := L) (M := M) S)
+  letI : L.Structure Sf := by
+    simpa [Sf] using (ElementarySubstructure.inducedStructure (L := L) (M := M) S)
   haveI : ∀ s, Nonempty (Sf s) := by
     intro s
     letI : Nonempty (M s) := (‹∀ s, Nonempty (M s)› s)
@@ -432,7 +434,7 @@ theorem exists_elementaryEmbedding_card_eq_of_le [DecidableEq Sorts]
     intro s
     letI : Small.{w} (Sf s) := hSmallSort s
     exact equivShrink (Sf s)
-  let S' : MSStructureType.{u, v, z, w} L :=
+  let S' : StructureType.{u, v, z, w} L :=
     Fam.MSEquiv.bundledInduced (Sorts := Sorts) (M := Sf) (N := N) (L := L) e
   refine
     ⟨S',
@@ -451,8 +453,8 @@ section
 /-- Upward Löwenheim–Skolem (multisorted; size measured by `Σ s, M s`):
 if `κ` bounds the language+sorts and the size of `M`, and some sort of `M` is infinite,
 then `M` has an elementary extension of size `κ` (measured by the sum of sorts). -/
-theorem exists_elementaryEmbedding_card_eq_of_ge [DecidableEq Sorts]
-    (M : Fam.{w'} Sorts) [L.MSStructure M] [∀ s, Nonempty (M s)]
+theorem exists_elementaryEmbedding_card_eq_of_ge
+    (M : Fam.{w'} Sorts) [L.Structure M] [∀ s, Nonempty (M s)]
     {t : Sorts} [Infinite (M t)]
     (κ : Cardinal.{w})
     (hLang :
@@ -462,7 +464,7 @@ theorem exists_elementaryEmbedding_card_eq_of_ge [DecidableEq Sorts]
     (hM :
       Cardinal.lift.{w} (Cardinal.mk (Σ s, M s)) ≤
         Cardinal.lift.{max w' z} κ) :
-    ∃ N : MSStructureType.{u, v, z, w}  L,
+    ∃ N : StructureType.{u, v, z, w}  L,
       Nonempty (M ↪ₑ[L] N.Carrier) ∧
       (Cardinal.mk (Σ s, N.Carrier s)) = Cardinal.lift.{z} κ
         := by
@@ -493,8 +495,10 @@ theorem exists_elementaryEmbedding_card_eq_of_ge [DecidableEq Sorts]
             rcases x with ⟨σx, sx, cx⟩
             rcases y with ⟨σy, sy, cy⟩
             cases σx <;> cases σy
-            · simp only [constantsOn_Functions, constantsOnFunc, constantsOn_Relations,
-              constantsOnFunc.eq_1, hxy, f]
+            · simp_all only [mk_sigma, lift_sum, Sigma.mk.injEq, Sum.inl.injEq, heq_eq_eq,
+                true_and, f]
+              obtain ⟨left, right⟩ := hxy
+              exact ⟨rfl, HEq.rfl⟩
             · cases cy
             · cases cy
             · cases cx
@@ -513,11 +517,13 @@ theorem exists_elementaryEmbedding_card_eq_of_ge [DecidableEq Sorts]
       Cardinal.lift.{w} (L[[M]]).card ≤
         Cardinal.lift.{max w w'} L.card + Cardinal.lift.{max u v w} (Cardinal.mk (Σ s, M s)) := by
     have hsum :
-        (L[[M]]).card = Cardinal.lift.{w'} L.card + Cardinal.lift.{max u v} (constantsOn M).card := by
-      simpa [MSLanguage.withConstants] using
-        (MSLanguage.card_sum (L := L) (L' := constantsOn M))
+        (L[[M]]).card = Cardinal.lift.{w'} L.card + Cardinal.lift.{max u v} (constantsOn M).card
+        := by
+      simpa [Language.withConstants] using
+        (Language.card_sum (L := L) (L' := constantsOn M))
     rw [hsum]
-    have hConstCard' : Cardinal.lift.{w} ((constantsOn M).card) ≤ Cardinal.lift.{w} (Cardinal.mk (Σ s, M s)) :=
+    have hConstCard' : Cardinal.lift.{w} ((constantsOn M).card) ≤ Cardinal.lift.{w}
+      (Cardinal.mk (Σ s, M s)) :=
       Cardinal.lift_le.2 hConstCard
     have hConstCard'' :
         Cardinal.lift.{max u v w} ((constantsOn M).card) ≤
@@ -555,7 +561,8 @@ theorem exists_elementaryEmbedding_card_eq_of_ge [DecidableEq Sorts]
     calc
       Cardinal.lift (#Sorts) + Cardinal.lift.{w} (L[[M]]).card
           ≤ Cardinal.lift (#Sorts) +
-              (Cardinal.lift.{max w w'} L.card + Cardinal.lift.{max u v w} (Cardinal.mk (Σ s, M s))) := by
+              (Cardinal.lift.{max w w'} L.card + Cardinal.lift.{max u v w} (Cardinal.mk (Σ s, M s)))
+               := by
             exact add_le_add_right hWCcard _
       _ = (Cardinal.lift (#Sorts) + Cardinal.lift.{max w w'} L.card) +
             Cardinal.lift.{max u v w} (Cardinal.mk (Σ s, M s)) := by
@@ -579,10 +586,10 @@ theorem exists_elementaryEmbedding_card_eq_of_ge [DecidableEq Sorts]
     rcases hEmb with ⟨f⟩
     letI : (N0.Carrier : Fam Sorts) ⊨ L.elementaryDiagram M := N0.is_model
     exact (f.theory_model_iff (L.elementaryDiagram M)).2 inferInstance
-  let Ndiag : (L.elementaryDiagram M).MSModelType :=
+  let Ndiag : (L.elementaryDiagram M).ModelType :=
     Theory.Model.bundled (L := L[[M]]) (T := L.elementaryDiagram M) (M := (S : Fam Sorts)) hSdiag
-  letI : L.MSStructure (Ndiag : Fam Sorts) := (L.lhomWithConstants M).reduct (Ndiag : Fam Sorts)
-  let N := (⟨(Ndiag : Fam Sorts)⟩ : MSStructureType.{u, v, z, w} L)
+  letI : L.Structure (Ndiag : Fam Sorts) := (L.lhomWithConstants M).reduct (Ndiag : Fam Sorts)
+  let N := (⟨(Ndiag : Fam Sorts)⟩ : StructureType.{u, v, z, w} L)
   refine ⟨N, ?_, ?_⟩
   · refine ⟨?_⟩
     simpa [N] using
@@ -591,15 +598,15 @@ theorem exists_elementaryEmbedding_card_eq_of_ge [DecidableEq Sorts]
 
 /-- A multisorted Löwenheim–Skolem dichotomy at cardinal `κ` (size measured by `Σ s, M s`):
 either a size-`κ` structure elementarily embeds into `M`, or `M` elementarily embeds into one. -/
-theorem exists_elementaryEmbedding_card_eq [DecidableEq Sorts]
-    (M : Fam.{w'} Sorts) [L.MSStructure M] [∀ s, Nonempty (M s)]
+theorem exists_elementaryEmbedding_card_eq
+    (M : Fam.{w'} Sorts) [L.Structure M] [∀ s, Nonempty (M s)]
     {t : Sorts} [Infinite (M t)]
     (κ : Cardinal.{w}) (h1 : ℵ₀ ≤ κ)
     (h2 :
       Cardinal.lift.{max u v w} (#Sorts) +
           Cardinal.lift.{w} L.card ≤
         Cardinal.lift.{max u v z} κ) :
-    ∃ N : MSStructureType.{u, v, z, w} L,
+    ∃ N : StructureType.{u, v, z, w} L,
       (Nonempty (N ↪ₑ[L] M) ∨ Nonempty (M ↪ₑ[L] N)) ∧
         (Cardinal.mk (Σ s, N.Carrier s)) = Cardinal.lift.{z} κ := by
   cases le_or_gt (Cardinal.lift.{max w' z} κ) (Cardinal.lift.{w} (Cardinal.mk (Σ s, M s))) with
@@ -615,15 +622,15 @@ theorem exists_elementaryEmbedding_card_eq [DecidableEq Sorts]
 /-- A consequence of multisorted Löwenheim–Skolem: if one sort of `M` is infinite, then for any
 large enough infinite `κ` there is a size-`κ` structure elementarily equivalent to `M`
 (size measured by `Σ s, M s`). -/
-theorem exists_elementarilyEquivalent_card_eq [DecidableEq Sorts]
-    (M : Fam.{w'} Sorts) [L.MSStructure M] [∀ s, Nonempty (M s)]
+theorem exists_elementarilyEquivalent_card_eq
+    (M : Fam.{w'} Sorts) [L.Structure M] [∀ s, Nonempty (M s)]
     {t : Sorts} [Infinite (M t)]
     (κ : Cardinal.{w}) (h1 : ℵ₀ ≤ κ)
     (h2 :
       Cardinal.lift.{max u v w} (#Sorts) +
           Cardinal.lift.{w} L.card ≤
         Cardinal.lift.{max u v z} κ) :
-    ∃ N : MSStructureType.{u, v, z, w} L,
+    ∃ N : StructureType.{u, v, z, w} L,
       ((M : Fam Sorts) ≅[L] (N : Fam Sorts)) ∧
         (Cardinal.mk (Σ s, N.Carrier s)) = Cardinal.lift.{z} κ := by
   obtain ⟨N, hNdir, hNκ⟩ := exists_elementaryEmbedding_card_eq
@@ -643,20 +650,20 @@ variable {T : L.Theory}
 /-- A multisorted model-cardinality consequence of Löwenheim–Skolem:
 if `T` has some model with an infinite sort, then `T` has a model of any sufficiently large
 infinite cardinality (measured by `Σ s, M s`). -/
-theorem exists_model_card_eq [DecidableEq Sorts]
-    (h : ∃ (M : Theory.MSModelType.{u, v, z, w'} T) (t : Sorts), Infinite (((M : Fam Sorts) t)))
+theorem exists_model_card_eq
+    (h : ∃ (M : Theory.ModelType.{u, v, z, w'} T) (t : Sorts), Infinite (((M : Fam Sorts) t)))
     (κ : Cardinal.{w}) (h1 : ℵ₀ ≤ κ)
     (h2 :
       Cardinal.lift.{max u v w} (#Sorts) +
           Cardinal.lift.{w} L.card ≤
         Cardinal.lift.{max u v z} κ) :
-    ∃ N : Theory.MSModelType.{u, v, z, w} T,
+    ∃ N : Theory.ModelType.{u, v, z, w} T,
       Cardinal.mk (Σ s, N.Carrier s) = Cardinal.lift.{z} κ := by
   rcases h with ⟨M, t, _⟩
   obtain ⟨N, hN, hNκ⟩ := exists_elementarilyEquivalent_card_eq
     (L := L) (M := (M : Fam Sorts)) (t := t) κ h1 h2
-  let N' : T.MSModelType := hN.toModel (T := T) (M := M)
-  exact ⟨N', by simpa [N'] using hNκ⟩
+  let N' : T.ModelType := hN.toModel (T := T) (M := M)
+  exact ⟨N', by simp only [N']; exact hNκ⟩
 
 end Theory
 
@@ -665,8 +672,9 @@ namespace Theory
 variable (T : L.Theory)
 
 /-- A theory models a bounded formula when all canonical bundled nonempty models realize it. -/
-def ModelsBoundedFormula {α : Fam.{u'} Sorts} {σ : Signature Sorts} (φ : L.BoundedFormula α σ) : Prop :=
-  ∀ (M : Theory.MSModelType.{u, v, z, max u u' v z} T)
+def ModelsBoundedFormula {α : Fam.{u'} Sorts} {σ : Signature Sorts} (φ : L.BoundedFormula α σ)
+  : Prop :=
+  ∀ (M : Theory.ModelType.{u, v, z, max u u' v z} T)
     (v : α →ₛ (M : Fam Sorts)) (xs : σ.Interpret (M : Fam Sorts)),
     φ.Realize v xs
 
@@ -675,7 +683,7 @@ infixl:51 " ⊨ᵇ " => ModelsBoundedFormula
 variable {T}
 theorem models_formula_iff {α : Fam.{u'} Sorts} {φ : L.Formula α} :
     T ⊨ᵇ φ ↔
-      ∀ (M : Theory.MSModelType.{u, v, z, max u u' v z} T) (v : α →ₛ (M : Fam Sorts)),
+      ∀ (M : Theory.ModelType.{u, v, z, max u u' v z} T) (v : α →ₛ (M : Fam Sorts)),
         φ.Realize v := by
   constructor
   · intro h M v
@@ -686,7 +694,7 @@ theorem models_formula_iff {α : Fam.{u'} Sorts} {φ : L.Formula α} :
     simpa [Theory.ModelsBoundedFormula, Formula.Realize] using h M v
 
 theorem models_sentence_iff {φ : L.Sentence} :
-    T ⊨ᵇ φ ↔ ∀ M : Theory.MSModelType.{u, v, z, max u v z} T, (M : Fam Sorts) ⊨ φ := by
+    T ⊨ᵇ φ ↔ ∀ M : Theory.ModelType.{u, v, z, max u v z} T, (M : Fam Sorts) ⊨ φ := by
   rw [models_formula_iff]
   constructor
   · intro h M
@@ -810,7 +818,7 @@ theorem closure_sup_mem_of_or {φ ψ : L.Sentence}
 turns a realization of the antecedent into a realization of the consequent. -/
 theorem models_sentence_imp_iff {φ ψ : L.Sentence} :
     T ⊨ᵇ (φ ⟹ ψ) ↔
-      ∀ M : Theory.MSModelType.{u, v, z, max u v z} T,
+      ∀ M : Theory.ModelType.{u, v, z, max u v z} T,
         ((M : Fam Sorts) ⊨ φ → (M : Fam Sorts) ⊨ ψ) := by
   rw [models_sentence_iff]
   constructor
@@ -919,12 +927,12 @@ theorem models_iff_not_satisfiable (φ : L.Sentence) :
           (Set.subset_union_right (Set.mem_singleton _)))
         (by
           have hsub : (h2.some : Fam Sorts) ⊨ T := (h2.some.is_model).mono Set.subset_union_left
-          let Msub : Theory.MSModelType.{u, v, z, max u v z} T := Theory.Model.bundled (T := T) hsub
+          let Msub : Theory.ModelType.{u, v, z, max u v z} T := Theory.Model.bundled (T := T) hsub
           exact h1 Msub),
       fun h M => ?_⟩
   contrapose! h
   rw [← Sentence.realize_not] at h
-  letI : ∀ s, Nonempty (((M : Theory.MSModelType.{u, v, z, max u v z} T) : Fam Sorts) s) :=
+  letI : ∀ s, Nonempty (((M : Theory.ModelType.{u, v, z, max u v z} T) : Fam Sorts) s) :=
     fun s => M.nonempty' (s := s)
   refine ⟨Theory.Model.bundled (T := T ∪ {φ.not}) (M := (M : Fam Sorts)) ?_⟩
   exact (M.is_model).union (by simpa using h)
@@ -932,7 +940,7 @@ theorem models_iff_not_satisfiable (φ : L.Sentence) :
 
 theorem ModelsBoundedFormula.realize_sentence {φ : L.Sentence} (h : T ⊨ᵇ φ)
     (M : Fam.{w'} Sorts)
-    [L.MSStructure M] [M ⊨ T] [∀ s, Nonempty (M s)] : M ⊨ φ := by
+    [L.Structure M] [M ⊨ T] [∀ s, Nonempty (M s)] : M ⊨ φ := by
   rw [models_iff_not_satisfiable] at h
   contrapose! h
   have : M ⊨ T ∪ {Formula.not φ} := by
@@ -946,7 +954,7 @@ theorem models_of_models_theory {T' : L.Theory}
     T ⊨ᵇ φ := by
   intro M v xs
   have hM : M ⊨ T' := T'.model_iff.2 (fun ψ hψ => (h ψ hψ).realize_sentence M)
-  let M' : Theory.MSModelType.{u, v, z, max u u' v z} T' := Theory.Model.bundled (T := T') hM
+  let M' : Theory.ModelType.{u, v, z, max u u' v z} T' := Theory.Model.bundled (T := T') hM
   exact hφ M' v xs
 
 theorem closure_mono {T' : L.Theory} (hTT' : T ⊆ T') :
@@ -1003,8 +1011,8 @@ theorem models_not_iff (h : T.IsComplete) (φ : L.Sentence) : T ⊨ᵇ φ.not �
     rw [models_sentence_iff] at *
     exact hφn h.1.some (hφ _)
 
-theorem realize_sentence_iff [DecidableEq Sorts] (h : T.IsComplete) (φ : L.Sentence)
-    (M : Fam.{w'} Sorts) [L.MSStructure M] [M ⊨ T] [∀ s, Nonempty (M s)] :
+theorem realize_sentence_iff (h : T.IsComplete) (φ : L.Sentence)
+    (M : Fam.{w'} Sorts) [L.Structure M] [M ⊨ T] [∀ s, Nonempty (M s)] :
     M ⊨ φ ↔ T ⊨ᵇ φ := by
   rcases h.2 φ with hφ | hφn
   · exact iff_of_true (hφ.realize_sentence M) hφ
@@ -1013,8 +1021,8 @@ theorem realize_sentence_iff [DecidableEq Sorts] (h : T.IsComplete) (φ : L.Sent
         ((h.models_not_iff φ).1 hφn)
 
 /-- A complete theory is the `completeTheory` of one of its models. -/
-theorem eq_complete_theory [DecidableEq Sorts] (h : T.IsComplete)
-    (M : Fam.{w'} Sorts) [L.MSStructure M] [M ⊨ T] [∀ s, Nonempty (M s)] :
+theorem eq_complete_theory (h : T.IsComplete)
+    (M : Fam.{w'} Sorts) [L.Structure M] [M ⊨ T] [∀ s, Nonempty (M s)] :
     {φ | T ⊨ᵇ φ} = L.completeTheory M := by
   ext φ
   simp only [Set.mem_setOf_eq, L.mem_completeTheory]
@@ -1028,9 +1036,9 @@ theorem eq_complete_theory [DecidableEq Sorts] (h : T.IsComplete)
 
 /-- A theory is complete iff it is satisfiable and all canonical bundled models are elementarily
 equivalent. -/
-theorem isComplete_iff_models_elementarily_equivalent [DecidableEq Sorts] :
+theorem isComplete_iff_models_elementarily_equivalent :
     T.IsComplete ↔ T.IsSatisfiable ∧
-      ∀ (M N : Theory.MSModelType.{u, v, z, max u v z} T),
+      ∀ (M N : Theory.ModelType.{u, v, z, max u v z} T),
         ((M : Fam Sorts) ≅[L] (N : Fam Sorts)) := by
   constructor
   · intro hcomp
@@ -1050,9 +1058,9 @@ theorem isComplete_iff_models_elementarily_equivalent [DecidableEq Sorts] :
         (mt (elementarilyEquivalent_iff.1 (h M N) φ).2 hφ)
 
 /-- If a theory is complete, all of its (nonempty) models are elementarily equivalent. -/
-theorem models_elementarily_equivalent [DecidableEq Sorts]
+theorem models_elementarily_equivalent
     (h : T.IsComplete)
-    (M : Fam.{w'} Sorts) (N: Fam.{w''} Sorts) [L.MSStructure M] [L.MSStructure N]
+    (M : Fam.{w'} Sorts) (N : Fam.{w''} Sorts) [L.Structure M] [L.Structure N]
     [M ⊨ T] [N ⊨ T] [∀ s, Nonempty (M s)] [∀ s, Nonempty (N s)] :
     (M ≅[L] N) := by
   rw [ElementarilyEquivalent, ← h.eq_complete_theory (M := M), ← h.eq_complete_theory (M := N)]
@@ -1083,19 +1091,19 @@ end Theory
 namespace completeTheory
 
 variable (L) (M : Fam.{w'} Sorts)
-variable [L.MSStructure M]
+variable [L.Structure M]
 
-theorem isSatisfiable [DecidableEq Sorts] [∀ s, Nonempty (M s)] : (L.completeTheory M).IsSatisfiable :=
+theorem isSatisfiable [∀ s, Nonempty (M s)] : (L.completeTheory M).IsSatisfiable :=
   Theory.Model.isSatisfiable (T := L.completeTheory M) (M := M)
 
 theorem mem_or_not_mem (φ : L.Sentence) :
     φ ∈ L.completeTheory M ∨ φ.not ∈ L.completeTheory M := by
   simp_rw [completeTheory, Set.mem_setOf_eq, Sentence.Realize, Formula.realize_not, or_not]
 
-theorem isMaximal [DecidableEq Sorts] [∀ s, Nonempty (M s)] : (L.completeTheory M).IsMaximal :=
+theorem isMaximal [∀ s, Nonempty (M s)] : (L.completeTheory M).IsMaximal :=
   ⟨isSatisfiable L M, mem_or_not_mem L M⟩
 
-theorem isComplete [DecidableEq Sorts] [∀ s, Nonempty (M s)] : (L.completeTheory M).IsComplete :=
+theorem isComplete [∀ s, Nonempty (M s)] : (L.completeTheory M).IsComplete :=
   (completeTheory.isMaximal L M).isComplete
 
 end completeTheory
@@ -1107,19 +1115,20 @@ variable (κ : Cardinal.{w}) (T : L.Theory)
 /-- A theory is `κ`-categorical (multisorted version) if any two canonical bundled models of total
 size `κ` (measured by `Σ s, M s`) are isomorphic. -/
 def Categorical : Prop :=
-  ∀ M N : Theory.MSModelType.{u, v, z, w} T,
+  ∀ M N : Theory.ModelType.{u, v, z, w} T,
     Cardinal.mk (Σ s, M.Carrier s) = Cardinal.lift.{z} κ →
       Cardinal.mk (Σ s, N.Carrier s) = Cardinal.lift.{z} κ →
         Nonempty ((M : Fam Sorts) ≃[L] (N : Fam Sorts))
 
 /-- A multisorted Łoś–Vaught test: categoricity in an infinite cardinal implies completeness, under
 the assumption that every model has some infinite sort. -/
-theorem Categorical.isComplete [DecidableEq Sorts]
+theorem Categorical.isComplete
     (h : Categorical (κ := κ) (T := T)) (h1 : ℵ₀ ≤ κ)
     (h2 :
       Cardinal.lift.{max u v w} (#Sorts) + Cardinal.lift.{w} L.card ≤ Cardinal.lift.{max u v z} κ)
     (hS : T.IsSatisfiable)
-    (hT : ∀ M : Theory.MSModelType.{u, v, z, max u v z} T, ∃ t : Sorts, Infinite (((M : Fam Sorts) t))) :
+    (hT : ∀ M : Theory.ModelType.{u, v, z, max u v z} T, ∃ t : Sorts,
+       Infinite (((M : Fam Sorts) t))) :
     T.IsComplete := by
   refine ⟨hS, fun φ => by
     obtain ⟨M0⟩ := hS
@@ -1147,10 +1156,10 @@ theorem Categorical.isComplete [DecidableEq Sorts]
 one-sort case (expressed as `[Unique Sorts]`). Without this hypothesis it is false in general:
 total size does not determine the per-sort cardinal profile. -/
 theorem empty_theory_categorical_of_unique [Unique Sorts]
-    (T : ((MSLanguage.empty : MSLanguage Sorts).Theory)) :
+    (T : ((Language.empty : Language Sorts).Theory)) :
     Categorical (κ := κ) (T := T) := by
   intro M N hM hN
-  rw [MSLanguage.empty.nonempty_equiv_iff]
+  rw [Language.empty.nonempty_equiv_iff]
   intro s
   have hs : s = default := Subsingleton.elim _ _
   subst hs
@@ -1160,46 +1169,50 @@ theorem empty_theory_categorical_of_unique [Unique Sorts]
         Cardinal.mk (Σ t : Sorts, M.Carrier t) := by
       simpa using Cardinal.mk_congr_lift ((Equiv.uniqueSigma (fun t => M.Carrier t)).symm)
     calc
-      Cardinal.lift.{max w z} (Cardinal.mk (M.Carrier default)) = Cardinal.mk (Σ t : Sorts, M.Carrier t) := hSigma
+      Cardinal.lift.{max w z} (Cardinal.mk (M.Carrier default)) =
+        Cardinal.mk (Σ t : Sorts, M.Carrier t) := hSigma
       _ = Cardinal.lift.{z} κ := hM
   have hN0 : Cardinal.lift.{max w z} (Cardinal.mk (N.Carrier default)) = Cardinal.lift.{z} κ := by
     have hSigma : Cardinal.lift.{max w z} (Cardinal.mk (N.Carrier default)) =
         Cardinal.mk (Σ t : Sorts, N.Carrier t) := by
       simpa using Cardinal.mk_congr_lift ((Equiv.uniqueSigma (fun t => N.Carrier t)).symm)
     calc
-      Cardinal.lift.{max w z} (Cardinal.mk (N.Carrier default)) = Cardinal.mk (Σ t : Sorts, N.Carrier t) := hSigma
+      Cardinal.lift.{max w z} (Cardinal.mk (N.Carrier default)) =
+        Cardinal.mk (Σ t : Sorts, N.Carrier t) := hSigma
       _ = Cardinal.lift.{z} κ := hN
   exact Cardinal.lift_inj.mp (hM0.trans hN0.symm)
 
 /-- A one-sort (via `[Unique Sorts]`) empty-language instance of the multisorted Łoś–Vaught test. -/
-theorem empty_infiniteTheory_isComplete_of_unique [DecidableEq Sorts] [Unique Sorts] :
-    (((MSLanguage.empty : MSLanguage Sorts).infiniteTheory (default : Sorts))).IsComplete := by
-  let L0 : MSLanguage Sorts := MSLanguage.empty
+theorem empty_infiniteTheory_isComplete_of_unique [Unique Sorts] :
+    (((Language.empty : Language Sorts).infiniteTheory (default : Sorts))).IsComplete := by
+  let L0 : Language Sorts := Language.empty
   let T0 : L0.Theory := L0.infiniteTheory (default : Sorts)
   have hcat : Categorical (κ := (Cardinal.aleph0 : Cardinal.{0})) (T := T0) :=
     empty_theory_categorical_of_unique (κ := (Cardinal.aleph0 : Cardinal.{0})) T0
   have h2 :
-      Cardinal.lift.{0} (#Sorts) + Cardinal.lift.{0} L0.card ≤ Cardinal.lift.{z} (Cardinal.aleph0 : Cardinal.{0}) := by
+      Cardinal.lift.{0} (#Sorts) + Cardinal.lift.{0} L0.card ≤ Cardinal.lift.{z} (Cardinal.aleph0
+        : Cardinal.{0}) := by
     have hSorts : Cardinal.lift.{0} (Cardinal.mk Sorts) = 1 := by
       simp only [mk_fintype, Fintype.card_unique, Nat.cast_one, lift_uzero]
-    rw [show (#Sorts) = Cardinal.mk Sorts by rfl, MSLanguage.card_empty, Cardinal.lift_zero, hSorts]
+    rw [show (#Sorts) = Cardinal.mk Sorts by rfl, Language.card_empty, Cardinal.lift_zero, hSorts]
     simp only [add_zero, lift_aleph0, one_le_aleph0]
   have hS : T0.IsSatisfiable := by
     let M : Fam Sorts := ⟨fun _ => ℕ⟩
-    letI : L0.MSStructure M := MSLanguage.emptyStructure
+    letI : L0.Structure M := Language.emptyStructure
     letI : ∀ s, Nonempty (M s) := fun s => by
       change Nonempty ℕ
       exact ⟨0⟩
     letI : Infinite (M default) := by
       change Infinite ℕ
       infer_instance
-    letI : M ⊨ T0 := MSLanguage.model_infiniteTheory L0 (s := default)
+    letI : M ⊨ T0 := Language.model_infiniteTheory L0 (s := default)
     exact Theory.Model.isSatisfiable (T := T0) (M := M)
-  have hT : ∀ M : Theory.MSModelType.{0, 0, z, max 0 0 z} T0,
+  have hT : ∀ M : Theory.ModelType.{0, 0, z, max 0 0 z} T0,
       ∃ t : Sorts, Infinite (((M : Fam Sorts) t)) := by
     intro M
     refine ⟨default, ?_⟩
-    exact (MSLanguage.model_infiniteTheory_iff (L := L0) (M := (M : Fam Sorts)) (s := default)).1 M.is_model
+    exact (Language.model_infiniteTheory_iff (L := L0) (M := (M : Fam Sorts))
+      (s := default)).1 M.is_model
   simpa [L0, T0] using
     (Categorical.isComplete (κ := (Cardinal.aleph0 : Cardinal.{0})) (T := T0) hcat
       (show (Cardinal.aleph0 : Cardinal.{0}) ≤ Cardinal.aleph0 by rfl) h2 hS hT)
@@ -1219,16 +1232,16 @@ theorem models_formula_iff_onTheory_models_equivSentence {φ : L.Formula α} :
       -- why doesn't that instance just work?
     rw [Formula.realize_equivSentence]
     have : M ⊨ T := (LHom.onTheory_model _ _).1 M.is_model -- why isn't M.is_model inferInstance?
-    let M' := Theory.MSModelType.of T M
+    let M' := Theory.ModelType.of T M
     exact h M' ⟨fun s a => (L.con s a : M.Carrier s)⟩  _
-  · letI : (constantsOn α).MSStructure M := constantsOn.structure v
+  · letI : (constantsOn α).Structure M := constantsOn.structure v
     have : M ⊨ (L.lhomWithConstants α).onTheory T := (LHom.onTheory_model _ _).2 inferInstance
     exact (Formula.realize_equivSentence _ _).1 (h.realize_sentence M)
 
 theorem ModelsBoundedFormula.realize_formula {φ : L.Formula α} (h : T ⊨ᵇ φ) (M : Fam Sorts)
-    [L.MSStructure M] [M ⊨ T] [∀ s, Nonempty (M s)] {v : α →ₛ M} : φ.Realize v := by
+    [L.Structure M] [M ⊨ T] [∀ s, Nonempty (M s)] {v : α →ₛ M} : φ.Realize v := by
   rw [models_formula_iff_onTheory_models_equivSentence] at h
-  letI : (constantsOn α).MSStructure M := constantsOn.structure v
+  letI : (constantsOn α).Structure M := constantsOn.structure v
   have : M ⊨ (L.lhomWithConstants α).onTheory T := (LHom.onTheory_model _ _).2 inferInstance
   exact (Formula.realize_equivSentence _ _).1 (h.realize_sentence M)
 /-
@@ -1244,7 +1257,7 @@ theorem models_toFormula_iff [DecidableEq Sorts] [∀ s, DecidableEq (α s)]
 
 theorem ModelsBoundedFormula.realize_boundedFormula
     {φ : L.BoundedFormula α n} (h : T ⊨ᵇ φ) (M : Type*)
-    [L.MSStructure M] [M ⊨ T] [Nonempty M] {v : α → M} {xs : Fin n → M} : φ.Realize v xs := by
+    [L.Structure M] [M ⊨ T] [Nonempty M] {v : α → M} {xs : Fin n → M} : φ.Realize v xs := by
   have h' : φ.toFormula.Realize (Sum.elim v xs) := (models_toFormula_iff.2 h).realize_formula M
   simp only [BoundedFormula.realize_toFormula, Sum.elim_comp_inl, Sum.elim_comp_inr] at h'
   exact h'
@@ -1252,3 +1265,5 @@ theorem ModelsBoundedFormula.realize_boundedFormula
 
  -/
 end Theory
+end Language
+end MSFirstOrder

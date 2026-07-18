@@ -1,2 +1,4 @@
-import ProdExpr.Skolem
-import ProdExpr.Complexity
+import MultisortedLogic.Skolem
+import MultisortedLogic.Complexity
+import MultisortedLogic.Examples.RingTerm
+import MultisortedLogic.Examples.ValuedFields

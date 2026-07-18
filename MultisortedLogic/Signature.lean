@@ -1,6 +1,6 @@
 import Mathlib.Logic.Equiv.Prod
 import Mathlib.Tactic
-import ProdExpr.Fam
+import MultisortedLogic.Fam
 import Mathlib.SetTheory.Cardinal.Basic
 import Mathlib.SetTheory.Cardinal.Arithmetic
 
@@ -36,15 +36,10 @@ def Signature.Interpret {S : Type u} (X : Fam.{v} S) : Signature S → Type v
   | .of s     => X s
   | prod a b  => Interpret X a × Interpret X b
 
-/-
---TODO?
-instance : Coe S (Signature S) where
-  coe := Signature.of
--/
 
 /--
 Notation for Signature.Interpret.
-`M[[^]]σ = Signature.Interpret M σ`
+`M [^]σ = Signature.Interpret M σ`
 -/
 notation:80 X " [^] " σ:81 => MSFirstOrder.Signature.Interpret X σ
 
@@ -57,11 +52,26 @@ instance instInterpretHPow {S : Type u} : HPow (S → Type v) (Signature S) (Typ
 lemma Signature.Interpret.hpow_eq {S : Type u} {σ : Signature S}
     {X : Fam.{v} S} : σ.Interpret X = X [^] σ := rfl
 
+lemma Interpret.prod_eq {S : Type u} {X : Fam.{v} S} {σ τ : Signature S} :
+    (X [^] (σ ⨯ τ)) = ( (X [^] σ) × (X [^] τ))  := rfl
+
+
 @[reducible]
 instance nilExpInhabited {S : Type u} {X : Fam.{v} S} : Inhabited (X[^]⦃⦄) :=
   by
     rw [←Signature.Interpret.hpow_eq, Signature.Interpret]
     apply inferInstance
+
+instance Interpret.instInhabited {S : Type*} {α : Fam S} {σ : Signature S} [∀ s, Inhabited (α s)] :
+    Inhabited (α [^] σ) := by
+  cases σ with
+  | nil => infer_instance
+  | of => infer_instance
+  | prod η ξ =>
+    rw [Interpret.prod_eq]
+    have : Inhabited (α [^] η) := instInhabited
+    have : Inhabited (α [^] ξ) := instInhabited
+    infer_instance
 
 namespace Signature
 
@@ -507,7 +517,9 @@ private def injRight (σ τ : Signature S) (j : Fin τ.length) :
 lemma injRight_Injective {σ τ : Signature S} :
   Function.Injective (injRight σ τ) := by
   intro v w h
-  cases v ; cases w ; simp_all only [injRight, Fin.mk.injEq, Nat.add_left_cancel_iff]
+  have h' : σ.length + (v : ℕ) = σ.length + (w : ℕ) := congrArg Fin.val h
+  ext
+  omega
 
 /-- List out the associated variables to a given σ -/
 def IdxFamList : (σ : Signature S) → List (Sigma σ.IdxFam)
@@ -549,11 +561,16 @@ def getIdxFam (σ : Signature S) : Fin σ.length → Sigma σ.IdxFam :=
     =
     ⟨(getIdxFam σ ⟨(i : Nat), h⟩).1,
       Signature.Idx.left (getIdxFam σ ⟨(i : Nat), h⟩).2⟩ := by
-  let j : Fin σ.length := ⟨(i : Nat), h⟩
-  have hij : σ.injLeft τ j = i := by
-    ext; rfl
-  simp_all only [getIdxFam, IdxFamList, List.get_eq_getElem, Fin.val_cast, List.length_map,
-    IdxFamList_length, List.getElem_append_left, List.getElem_map, Fin.cast_mk]
+  have key : getIdxFam (σ ⨯ τ) i =
+      (σ.IdxFamList.map (fun x => (⟨x.1, Signature.Idx.left x.2⟩ : Sigma (σ ⨯ τ).IdxFam)) ++
+        τ.IdxFamList.map (fun x => ⟨x.1, Signature.Idx.right x.2⟩))[(i : Nat)]'(by
+          have hi := i.isLt
+          simp only [length] at hi
+          simp only [List.length_append, List.length_map, IdxFamList_length]
+          omega) := rfl
+  rw [key, List.getElem_append_left (by simpa using h)]
+  simp only [List.getElem_map]
+  rfl
 
 
 @[simp] private lemma getIdxFam_prod_right
@@ -567,14 +584,16 @@ def getIdxFam (σ : Signature S) : Fin σ.length → Sigma σ.IdxFam :=
         (getIdxFam τ
           ⟨(i : Nat) - σ.length,
             nat_lt_lemma (n := σ.length) (m := (i : Nat)) (k := τ.length) i.is_lt h⟩).2⟩ := by
-  let k : Fin τ.length :=
-    ⟨(i : Nat) - σ.length,
-      nat_lt_lemma (n := σ.length) (m := (i : Nat)) (k := τ.length) i.is_lt h⟩
-  have hik : Signature.injRight σ τ k = i := by
-    ext
-    simp only [injRight, Nat.add_sub_of_le h, Fin.eta, k]
-  simp_all only [getIdxFam, IdxFamList, List.get_eq_getElem, Fin.val_cast, List.length_map,
-    IdxFamList_length, List.getElem_append_right, List.getElem_map, Fin.cast_mk]
+  have key : getIdxFam (σ ⨯ τ) i =
+      (σ.IdxFamList.map (fun x => (⟨x.1, Signature.Idx.left x.2⟩ : Sigma (σ ⨯ τ).IdxFam)) ++
+        τ.IdxFamList.map (fun x => ⟨x.1, Signature.Idx.right x.2⟩))[(i : Nat)]'(by
+          have hi := i.isLt
+          simp only [length] at hi
+          simp only [List.length_append, List.length_map, IdxFamList_length]
+          omega) := rfl
+  rw [key, List.getElem_append_right (by simpa using h)]
+  simp only [List.getElem_map, List.length_map, IdxFamList_length]
+  rfl
 
 
 def Idx.toFin : ∀ {σ : Signature S} {s : S}, σ.IdxFam s → Fin σ.length
@@ -582,7 +601,7 @@ def Idx.toFin : ∀ {σ : Signature S} {s : S}, σ.IdxFam s → Fin σ.length
   | .prod σ τ, _, .left v  => Signature.injLeft  σ τ (Idx.toFin v)
   | .prod σ τ, _, .right v => Signature.injRight σ τ (Idx.toFin v)
 
-def Idx.toFin_inj {σ : Signature S} {s : S} :
+theorem Idx.toFin_inj {σ : Signature S} {s : S} :
     Function.Injective (toFin (σ := σ) (s := s)) := by
   intro v w h
   induction σ with
@@ -598,17 +617,17 @@ def Idx.toFin_inj {σ : Signature S} {s : S} :
         simp_all only [toFin]
         exact injLeft_Injective h
       case right w' =>
-        simp_all only [toFin, injLeft, injRight, Fin.mk.injEq, reduceCtorEq]
-        let hv' := v'.toFin.2
-        let hw' := w'.toFin.2
-        linarith
+        exfalso
+        have h' : (v'.toFin : ℕ) = η.length + (w'.toFin : ℕ) := congrArg Fin.val h
+        have hv' := v'.toFin.isLt
+        omega
     case right v' =>
       cases w
       case left w' =>
-        simp_all only [toFin, injRight, injLeft, Fin.mk.injEq, reduceCtorEq]
-        let hv' := v'.toFin.2
-        let hw' := w'.toFin.2
-        linarith
+        exfalso
+        have h' : η.length + (v'.toFin : ℕ) = (w'.toFin : ℕ) := congrArg Fin.val h
+        have hw' := w'.toFin.isLt
+        omega
       case right w' =>
         rw [right.injEq]
         apply ihτ
@@ -631,22 +650,20 @@ private def getIdxFamInv (σ : Signature S) : Sigma σ.IdxFam → Fin σ.length
   | prod σ τ ih₁ ih₂ =>
     cases v
     case left w =>
-      simp only [getIdxFam, IdxFamList, Idx.toFin, injLeft, Fin.cast_mk, List.get_eq_getElem,
-        List.length_map, IdxFamList_length, Fin.is_lt, List.getElem_append_left, List.getElem_map,
-        Sigma.mk.injEq]
-      have h₁ := ih₁ w
-      simp only [getIdxFam, List.get_eq_getElem, Fin.val_cast] at h₁
-      rw [h₁]
-      simp only [heq_eq_eq, and_self]
+      rw [getIdxFam_prod_left _
+        (w.toFin.isLt : (↑(Idx.toFin (σ := σ ⨯ τ) (s := s) (Idx.left w)) : ℕ) < σ.length)]
+      rw [show (⟨(↑(Idx.toFin (σ := σ ⨯ τ) (s := s) (Idx.left w)) : ℕ), w.toFin.isLt⟩ :
+        Fin σ.length) = w.toFin from rfl, ih₁ w]
     case right w =>
-      have h₂ := ih₂ w
-      simp only [getIdxFam, IdxFamList, Idx.toFin, injRight, Fin.cast_mk, List.get_eq_getElem,
-        List.length_map, IdxFamList_length, le_add_iff_nonneg_right, zero_le,
-        List.getElem_append_right, add_tsub_cancel_left, List.getElem_map, Sigma.mk.injEq]
-      simp only [getIdxFam, List.get_eq_getElem, Fin.val_cast] at h₂
-      apply And.intro
-      · simp_all only
-      · rw [h₂]
+      have hle : σ.length ≤ (↑(Idx.toFin (σ := σ ⨯ τ) (s := s) (Idx.right w)) : ℕ) :=
+        Nat.le_add_right _ _
+      rw [getIdxFam_prod_right _ hle]
+      rw [show (⟨(↑(Idx.toFin (σ := σ ⨯ τ) (s := s) (Idx.right w)) : ℕ) - σ.length,
+          nat_lt_lemma (Idx.toFin (σ := σ ⨯ τ) (s := s) (Idx.right w)).is_lt hle⟩ :
+          Fin τ.length) = w.toFin from Fin.ext (by
+            show σ.length + (↑(Idx.toFin (σ := τ) (s := s) w) : ℕ) - σ.length =
+              ↑(Idx.toFin (σ := τ) (s := s) w)
+            omega), ih₂ w]
 
 
 @[simp] private lemma getIdxFamInv_getIdxFam {σ : Signature S} (i : Fin σ.length) :
@@ -656,8 +673,8 @@ private def getIdxFamInv (σ : Signature S) : Sigma σ.IdxFam → Fin σ.length
     cases i
     case mk j h =>
       rw [Signature.length] at h
-      simp_all only [not_lt_zero']
-  | of s => ext; simp_all only [Fin.val_eq_zero]
+      simp_all only [not_lt_zero]
+  | of s => have h1 : (⦃s⦄ : Signature S).length = 1 := rfl; ext; omega
   | prod σ τ ih₁ ih₂ =>
     by_cases h : ↑i < σ.length
     case pos =>
@@ -794,14 +811,16 @@ noncomputable def famToSignature : Σ σ : Signature S, X ≃ₛ σ.IdxFam := by
     simp only [toFun]
     refine Sigma.ext (by simp only [hfst] : _) ?_
     simp_all only [List.length_ofFn, List.map_ofFn, Equiv.trans_apply,
-      Fam.FamMap.mk_apply, eqRec_heq_iff_heq, heq_eq_eq, l, n, e, σ, f]
+      Fam.FamMap.mk_apply, l, n, e, σ, f]
+    exact eqRec_heq _ _
   have h_inv : ∀ (s : S) (v : σ.IdxFam s), ⟨s, invFun s v⟩ = f.symm ⟨s, v⟩ := by
     intro s v
     simp only [invFun]
     refine Sigma.ext (by simp only [hfsymm_fst] : _) ?_
     simp_all only [List.length_ofFn, List.map_ofFn, Equiv.trans_apply, Fam.FamMap.mk_apply,
-      cast_FinIndSigEquiv_apply, Equiv.symm_trans_apply, eqRec_heq_iff_heq, heq_eq_eq, l, n, e, σ,
+      cast_FinIndSigEquiv_apply, Equiv.symm_trans_apply, l, n, e, σ,
       toFun, f]
+    exact eqRec_heq _ _
   -- 6. Assemble the MSEquiv; inverses follow from f being an equivalence
   exact {
     toFun, invFun
@@ -1464,16 +1483,14 @@ lemma fromSorts_iff_toList {A : Set S} {σ : Signature S} :
       constructor <;>
       simp_all only [toList, List.mem_append, true_or, implies_true, iff_true, or_true]
 
-noncomputable
-def fromSorts_of_toList {A : Set S} {σ : Signature S}
+theorem fromSorts_of_toList {A : Set S} {σ : Signature S}
   (h : ∀ t ∈ σ.toList, t ∈ A) : fromSorts A σ := fromSorts_iff_toList.mpr h
 
 lemma toList_all_in_of_fromSorts {A : Set S} {σ : Signature S} (h : fromSorts A σ) :
   ∀ t ∈ σ.toList, t ∈ A := fromSorts_iff_toList.mp h
 
 /-- A signature built from a list of elements in A is fromSorts A. -/
-noncomputable
-def fromSorts_fromList {A : Set S} (l : List S) (hl : ∀ x ∈ l, x ∈ A) :
+theorem fromSorts_fromList {A : Set S} (l : List S) (hl : ∀ x ∈ l, x ∈ A) :
     fromSorts A (Signature.fromList l) := by
   apply fromSorts_of_toList (A := A) (σ := Signature.fromList l)
   intro t ht
@@ -1591,7 +1608,7 @@ lemma oneSort_iff_toList {s : S} {σ : Signature S} :
   rw[←fromSorts.fromSorts_singleton_iff_oneSort]
   simp only [fromSorts.fromSorts_iff_toList, Set.mem_singleton_iff]
 
-def oneSort_of_toList {s : S} {σ : Signature S}
+theorem oneSort_of_toList {s : S} {σ : Signature S}
   (h : ∀ t ∈ σ.toList, t = s) : OneSort s σ :=
   oneSort_iff_toList.mpr h
 
@@ -1600,8 +1617,7 @@ lemma toList_all_eq_of_oneSort {s : S} {σ : Signature S} (h : OneSort s σ) :
   oneSort_iff_toList.mp h
 
 /-- A signature built from `n` copies of sort `s` is trivially OneSort. -/
-noncomputable
-def oneSort_fromList_replicate (s : S) (n : ℕ) :
+theorem oneSort_fromList_replicate (s : S) (n : ℕ) :
     OneSort s (Signature.fromList (List.replicate n s)) := by
   apply oneSort_of_toList (s := s) (σ := Signature.fromList (List.replicate n s))
   intro t ht
@@ -1651,7 +1667,7 @@ lemma toFin_surj {σ : Signature S} (h : OneSort s σ) :
         refine ⟨(Signature.Idx.var : ⦃s⦄.IdxFam s), ?_⟩
         cases i with
         | mk n hn =>
-          have hn0 : n = 0 := Nat.eq_of_lt_succ_of_not_lt hn (by simp only [not_lt_zero',
+          have hn0 : n = 0 := Nat.eq_of_lt_succ_of_not_lt hn (by simp only [not_lt_zero,
             not_false_eq_true])
           ext
           simp only [toFin, hn0]
@@ -1671,8 +1687,9 @@ lemma toFin_surj {σ : Signature S} (h : OneSort s σ) :
                   rfl
         · have hle : σ.length ≤ (i : Nat) := Nat.le_of_not_gt hi
           have hj : (i : Nat) - σ.length < τ.length := by
-            have h' := Nat.sub_lt_sub_right (b := (σ ⨯ τ).length) hle
-            simp_all only [length, not_lt, Fin.is_lt, add_tsub_cancel_left, forall_const]
+            have h' := i.isLt
+            simp only [length] at h'
+            omega
           let j : Fin τ.length := ⟨(i : Nat) - σ.length, hj⟩
           rcases ihτ j with ⟨vτ, hvτ⟩
           refine ⟨Signature.Idx.right vτ, ?_⟩

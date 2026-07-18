@@ -1,20 +1,20 @@
-import ProdExpr.Syntax
+import MultisortedLogic.Syntax
 import Mathlib.Data.List.Basic
 
 universe u v w z u' v' w'
 
 namespace MSFirstOrder
 
-namespace MSLanguage
+namespace Language
 
-variable {Sorts : Type z} {L : MSLanguage.{u, v, z} Sorts} {L' : MSLanguage Sorts}
+variable {Sorts : Type z} {L : Language.{u, v, z} Sorts} {L' : Language Sorts}
 variable {M : Fam.{w} Sorts} {α : Fam.{u'} Sorts} {β : Fam.{v'} Sorts} {γ : Fam Sorts}
 
 section quant_notation
 
 namespace BoundedFormula
 
-open MSFirstOrder.MSLanguage.Term Signature
+open MSFirstOrder.Language.Term Signature
 
 -- ==========================================================
 -- 1. Variable Indexing
@@ -131,10 +131,10 @@ def mkEx_helper {P : Type w} (p : P) {Outer Inner : Signature Sorts}
   @Quantifiable.mkEx _ L α _ p Outer Inner inst φ
 
 scoped[MSFirstOrder] notation:110 (name := poly_forall) "∀'" p:max φ:110 =>
-  MSFirstOrder.MSLanguage.BoundedFormula.Quantifiable.mkAll p φ
+  MSFirstOrder.Language.BoundedFormula.Quantifiable.mkAll p φ
 
 scoped[MSFirstOrder] notation:110 (name := poly_exists) "∃'" p:max φ:110 =>
-  MSFirstOrder.MSLanguage.BoundedFormula.Quantifiable.mkEx p φ
+  MSFirstOrder.Language.BoundedFormula.Quantifiable.mkEx p φ
 
 /--
 `∀*[ s1, s2, ... ] φ`
@@ -196,6 +196,6 @@ protected def total : L.Sentence :=
 
 end Relations
 
-end MSLanguage
+end Language
 
 end MSFirstOrder

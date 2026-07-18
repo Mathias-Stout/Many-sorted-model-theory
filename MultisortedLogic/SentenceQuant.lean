@@ -1,4 +1,4 @@
-import ProdExpr.Semantics
+import MultisortedLogic.Semantics
 
 /-!
 # Sentence Quantification over All Free Variables
@@ -45,13 +45,13 @@ universe u v w z u' v'
 
 namespace MSFirstOrder
 
-namespace MSLanguage
+namespace Language
 
-variable {Sorts : Type z} {L : MSLanguage.{u, v, z} Sorts}
-variable {M : Fam.{w} Sorts} [L.MSStructure M]
+variable {Sorts : Type z} {L : Language.{u, v, z} Sorts}
+variable {M : Fam.{w} Sorts} [L.Structure M]
 variable {α : Fam.{u'} Sorts}
 
-open MSStructure MSLanguage Fam Signature BoundedFormula
+open Structure Language Fam Signature BoundedFormula
 
 /-! ## Definitions -/
 
@@ -163,6 +163,7 @@ private theorem forall_freeVar_iff_forall_assign {φ : L.Formula α} :
               ?_ default).mpr (h _)
     intro s a hm
     simp only [FamMap.idₛ_apply', FamMap.mk_apply, dif_pos hm]
+    rfl
 
 /-- Bridge for existentials. -/
 private theorem exists_freeVar_iff_exists_assign {φ : L.Formula α} :
@@ -180,6 +181,7 @@ private theorem exists_freeVar_iff_exists_assign {φ : L.Formula α} :
               ?_ default).mp hi⟩
     intro s a hm
     simp only [FamMap.idₛ_apply', FamMap.mk_apply, dif_pos hm]
+    rfl
   · rintro ⟨v, hv⟩
     -- Restrict v to free variables
     exact ⟨⟨fun s x => v s x.val⟩,
@@ -200,6 +202,6 @@ end full_assign_forms
 
 end Formula
 
-end MSLanguage
+end Language
 
 end MSFirstOrder

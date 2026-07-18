@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 import Mathlib.Init
 import Mathlib.Data.Fintype.Basic
-import ProdExpr.SubstructureMS
-import ProdExpr.SemanticTactics
+import MultisortedLogic.SubstructureMS
+import MultisortedLogic.SemanticTactics
 
 /-!
 # Elementary Maps Between Multi-Sorted First-Order Structures
@@ -15,16 +15,16 @@ generalizing the one-sorted case from `ElementaryMaps.lean`.
 
 ## Main Definitions
 
-- A `MSFirstOrder.MSLanguage.ElementaryEmbedding` is an embedding that commutes with the
+- A `MSFirstOrderer.Language.ElementaryEmbedding` is an embedding that commutes with the
   realizations of formulas.
-- The `MSFirstOrder.MSLanguage.elementaryDiagram` of a structure is the set of all sentences with
+- The `MSFirstOrderer.Language.elementaryDiagram` of a structure is the set of all sentences with
   parameters that the structure satisfies.
-- `MSFirstOrder.MSLanguage.ElementaryEmbedding.ofModelsElementaryDiagram` is the canonical
+- `MSFirstOrderer.Language.ElementaryEmbedding.ofModelsElementaryDiagram` is the canonical
   elementary embedding of any structure into a model of its elementary diagram.
 
 ## Main Results
 
-- The Tarski-Vaught Test for embeddings: `MSFirstOrder.MSLanguage.Embedding.isElementary_of_exists`
+- The Tarski-Vaught Test for embeddings: `MSFirstOrderer.Language.Embedding.isElementary_of_exists`
   gives a simple criterion for an embedding to be elementary.
 -/
 
@@ -32,13 +32,14 @@ universe u u' v w w' z
 
 namespace MSFirstOrder
 
-namespace MSLanguage
+namespace Language
 
-open MSStructure Signature Interpret
+open MSFirstOrder Structure Signature Interpret Fam
 
-variable {Sorts : Type z} (L : MSLanguage.{u, v, z} Sorts)
-variable (M : Fam.{w} Sorts) (N : Fam.{w'} Sorts) {P : Fam Sorts}{ Q : Fam Sorts}
-variable [L.MSStructure M] [L.MSStructure N] [L.MSStructure P] [L.MSStructure Q]
+variable {Sorts : Type z} (L : Language.{u, v, z} Sorts)
+variable (M : Fam.{w} Sorts) (N : Fam.{w'} Sorts) {P : Fam Sorts} {Q : Fam Sorts}
+variable [L.Structure M] [L.Structure N] [L.Structure P] [L.Structure Q]
+
 
 /-- An elementary embedding of multi-sorted first-order structures is an embedding that commutes
   with the realizations of formulas. -/
@@ -51,9 +52,9 @@ structure ElementaryEmbedding where
       φ.Realize default (toFun <$>ₛ x) ↔ φ.Realize default x := by
     aesop
 
-@[inherit_doc MSFirstOrder.MSLanguage.ElementaryEmbedding]
+@[inherit_doc MSFirstOrder.Language.ElementaryEmbedding]
 scoped[MSFirstOrder] notation:25 A " ↪ₑ[" L "] " B =>
-  MSFirstOrder.MSLanguage.ElementaryEmbedding L A B
+  MSFirstOrder.Language.ElementaryEmbedding L A B
 
 variable {L} {M} {N}
 
@@ -61,7 +62,7 @@ namespace ElementaryEmbedding
 
 instance instFamMapClass : Fam.FamMapClass (M ↪ₑ[L] N) M N where
   coe f := f.toFun
-  coe_injective' := by
+  coe_injective := by
     rintro ⟨f, hf⟩ ⟨g, hg⟩ h
     have hfg : f = g := by
       ext s x
@@ -80,25 +81,74 @@ instance instFamMapClass : Fam.FamMapClass (M ↪ₑ[L] N) M N where
 
 open Formula BoundedFormula
 
+-- TODO: likely this lemma has a better home in a different file
+/- TODO: universe levels are awkward, but max{u' z} is the only thing that seems to work
+ since `σ.IdxFam` is a `Fam.{z}`,
+ variable {α : Fam.{u'} Sorts} {σ : Signature Sorts}
+#check α -- Fam Sorts : Type (max z (u' + 1))
+#check σ.IdxFam -- Fam Sorts : Type (z + 1)  -/
+theorem map_boundedformula_iff_map_formula (f : M →ₛ N) :
+    (∀ (α : Fam.{max u' z} Sorts) v (φ : L.Formula α), φ.Realize v ↔ φ.Realize (f ∘ₛ v))
+    ↔ (∀ (α : Fam.{max u' z} Sorts) σ v x (φ : L.BoundedFormula α σ), φ.Realize v x
+      ↔ φ.Realize (f ∘ₛ v) (f <$>ₛ x)) := by
+  constructor
+  · intro h α σ v x φ
+    rw [realize_iff_toFormula, realize_iff_toFormula, h, Fam.sumComp_elim, get_map]
+    rfl
+  · intro h α v φ
+    apply h α ⦃⦄ v default φ
+
+
+/- If all formulas with parameters from M are preserved then the embedding is elementary-/
+theorem is_elementary_of_map_formula_M (f : M →ₛ N)
+    (hmap : ∀ (φ : L.Formula M), φ.Realize f ↔ φ.Realize FamMap.idₛ) :
+    ∀ {σ} (φ : L.BoundedFormula Fam.EmptyFam σ) x, φ.Realize default (f <$>ₛ x) ↔
+      φ.Realize default x
+    := by
+    intro σ φ x
+    rw [realize_iff_toFormula, realize_iff_toFormula]
+    classical
+    set φ' := φ.toFormula with φ'_def
+    set g : (Fam.EmptyFam ⊕ₛ σ.IdxFam) →ₛ M := Fam.sumElim default x.get with g_def
+    set ψ := φ'.rename g with ψ_def
+    have h₁ := realize_rename φ' g Fam.FamMap.idₛ default
+    rw [FamMap.idₛ_comp] at h₁
+    rw [Formula.Realize, Formula.Realize, get_map]
+    rw [← h₁]
+    have h₂ := realize_rename φ' g f default
+    rw [Fam.sumComp_elim] at h₂
+    -- TODO: make this a separate lemma
+    have : f ∘ₛ (default : EmptyFam →ₛ M) = default := by
+      ext s v
+      exact v.elim
+    rw [this] at h₂
+    have : (FamMapClass.toFamMap f ∘ₛ x.get) = f ∘ₛ x.get := rfl
+    rw [this, ← h₂]
+    exact hmap _
+
+/-- Given a map that preserves all formulas with parameters from M, bundle it into an elementary
+  embedding -/
+def ofMapFormulaM (f : M →ₛ N)
+    (hmap : ∀ (φ : L.Formula M), φ.Realize f ↔ φ.Realize FamMap.idₛ) :ElementaryEmbedding L M N :=
+  ⟨f, is_elementary_of_map_formula_M f hmap⟩
+
 @[simp]
 theorem map_formula {α} (f : M ↪ₑ[L] N)
     (φ : L.Formula α) (x : α →ₛ M) :
     Realize φ ((f: M →ₛ N) ∘ₛ x) ↔ Realize φ x := by
   classical
-  letI : DecidableEq Sorts := Classical.typeDecidableEq _
-  letI : ∀ s, DecidableEq (α s) := fun s => Classical.typeDecidableEq _
   let φ_loc := φ.localize
   rw[φ_loc.realize_toBoundedFormula x, φ_loc.realize_toBoundedFormula ((f: M →ₛ N) ∘ₛ x)]
   have hmap : φ_loc.toTuple N (f ∘ₛ x) = f <$>ₛ (φ_loc.toTuple M x) := by
     ext s v
     rename_i this_1
-    simp_all only [LocalForm.get_toTuple, mapClass_eq_map, this_1, this, φ_loc]
+    simp_all only [LocalForm.get_toTuple, mapClass_eq_map, φ_loc]
     change (φ.localize.comap N (↑f ∘ₛ x)) s v = ((↑f) <$>ₛ (φ.localize.toTuple M x)).get s v
     rw[get_map]
-    simp_all only [LocalForm.get_toTuple, Fam.FamMap.comp_apply', this_1, this]
+    simp_all only [LocalForm.get_toTuple, Fam.FamMap.comp_apply']
     rfl
   rw [hmap]
-  simpa using f.map_boundedFormula' φ_loc.toBoundedFormula (φ_loc.toTuple M x)
+  exact f.map_boundedFormula' φ_loc.toBoundedFormula (φ_loc.toTuple M x)
 
 @[simp]
 theorem map_boundedFormula {α} (f : M ↪ₑ[L] N) {σ : Signature Sorts}
@@ -126,10 +176,11 @@ theorem map_boundedFormula {α} (f : M ↪ₑ[L] N) {σ : Signature Sorts}
     ext s w
     simp_all only [reduce_nil, fromGet_get]; rfl
   have hmap :
-      ψ.Realize (Fam.sumElim (f ∘ₛ v) (f <$>ₛ xs).get) default ↔
+    ψ.Realize (Fam.sumElim (f ∘ₛ v) (f <$>ₛ xs).get) default ↔
         ψ.Realize (Fam.sumElim v xs.get) default := by
-    simpa only [get_map, PUnit.default_eq_unit, reduce_nil, Fam.sumComp_elim] using
-      f.map_formula ψ (Fam.sumElim v xs.get)
+    simp only [PUnit.default_eq_unit, reduce_nil, get_map, ←Fam.sumComp_elim]
+    rw [←Formula.Realize, f.map_formula ψ (sumElim v xs.get)]
+    rfl
   rw[← hN, ←hM, hmap]
 
 
@@ -425,8 +476,8 @@ abbrev elementaryDiagram : L[[M]].Theory :=
 
 variable {L} {M}
 
-def ElementaryEmbedding.ofModelsElementaryDiagram (N : Fam Sorts) [L.MSStructure N]
-    [L[[M]].MSStructure N] [(lhomWithConstants L M).IsExpansionOn N] [N ⊨ L.elementaryDiagram M] :
+def ElementaryEmbedding.ofModelsElementaryDiagram (N : Fam Sorts) [L.Structure N]
+    [L[[M]].Structure N] [(lhomWithConstants L M).IsExpansionOn N] [N ⊨ L.elementaryDiagram M] :
     M ↪ₑ[L] N :=
   let constantsInr : M →ₛ (⟨fun s => L[[M]].Constants s⟩ : Fam Sorts) :=
     ⟨fun s (x : M s) => (Sum.inr x : L[[M]].Constants s)⟩
@@ -444,20 +495,20 @@ def ElementaryEmbedding.ofModelsElementaryDiagram (N : Fam Sorts) [L.MSStructure
         ((realize_iff_of_model_completeTheory M N φ').trans
           ?_)
   · simp only [Sentence.Realize, BoundedFormula.realize_fully_instantiate, PUnit.default_eq_unit,
-    reduce_nil, varFreeAssign_eq_default, LHom.realize_onBoundedFormula, φ']
+    reduce_nil, LHom.realize_onBoundedFormula, φ']
+    simp only [Unique.uniq]
     congr!
-    simp_all only [Theory.model_iff, mem_completeTheory, constantsOn_Functions,
-      constantsOnFunc.eq_1, Term.realize_bind,  Term.realize_varterm, t]
+    simp_all only [Theory.model_iff, mem_completeTheory, Term.realize_bind,
+      Term.realize_varterm, t]
     ext s w
-    simp_all only [constantsOn_Functions, constantsOnFunc.eq_1, get_map, Fam.FamMap.comp_apply',
+    simp_all only [get_map, Fam.FamMap.comp_apply',
       Fam.FamMap.mk_apply, Term.realize_constants, fromGet_get, Fam.coeFun_apply, evalConst,
       constantsInr]
     rfl
   · simp only [Sentence.Realize, BoundedFormula.realize_fully_instantiate, PUnit.default_eq_unit,
-    reduce_nil, varFreeAssign_eq_default, LHom.realize_onBoundedFormula, φ']
+    reduce_nil, LHom.realize_onBoundedFormula, φ']
     congr!
-    simp_all only [Theory.model_iff, mem_completeTheory, constantsOn_Functions,
-      constantsOnFunc.eq_1, Term.realize_bind, Term.realize_varterm, t]
+    simp_all only [Theory.model_iff, mem_completeTheory, Term.realize_bind, Term.realize_varterm, t]
     ext s w
     simp_all only [fromGet_get]
     rfl
@@ -486,8 +537,8 @@ theorem map_term_realize {σ}
   {α : Fam Sorts}
   {t : L.Term α σ}
   {v : α →ₛ M} :
-  (t.realize v).map f = t.realize ((f : M →ₛ N) ∘ₛ v) := by
-  simpa only using (HomClass.realize_term (g := (f : M ↪[L] N)) (v := v) (t := t)).symm
+  (t.realize v).map f = t.realize ((f : M →ₛ N) ∘ₛ v) :=
+    (HomClass.realize_term (g := (f : M ↪[L] N)) (v := v) (t := t)).symm
 
 /-- The **Tarski-Vaught test** for elementarity of an embedding.
     For a multi-sorted language, we need to check the existential condition for each sort.
@@ -514,14 +565,12 @@ by
   | falsum =>
       simp only [BoundedFormula.Realize]
   | @equal τ σ' t₁ t₂ =>
-
       let vM : (Fam.EmptyFam ⊕ₛ τ.IdxFam) →ₛ M :=
         Fam.sumElim default xs.get
       let vF : (Fam.EmptyFam ⊕ₛ τ.IdxFam) →ₛ N :=
         Fam.sumElim default (f <$>ₛ xs).get
       let vN : (Fam.EmptyFam ⊕ₛ τ.IdxFam) →ₛ N :=
         Fam.sumElim default (fun s ↦ f s ∘ xs.get s)
-
       have hv : vF = vN := by
         ext s i
         cases i with
@@ -536,7 +585,6 @@ by
         | inl e => cases e
         | inr j =>
             rfl
-
       have hreal (u : L.Term (Fam.EmptyFam ⊕ₛ τ.IdxFam) σ') :
           Term.realize vN u = (f : M ↪[L] N) <$>ₛ Term.realize vM u := by
         calc
@@ -544,12 +592,12 @@ by
             HomClass.realize_term]
           _ = (f : M ↪[L] N) <$>ₛ Term.realize vM u := by
             simp only [(HomClass.realize_term (g := (f : M ↪[L] N)) (t := u) (v := vM))]
-
       rw [BoundedFormula.Realize, BoundedFormula.Realize]
       constructor
       · intro h
         have hN : Term.realize vN t₁ = Term.realize vN t₂ := by
-          simpa only [get_map] using h
+          simp only [get_map] at h
+          exact h
         have hmap :
             (f : M ↪[L] N) <$>ₛ Term.realize vM t₁ =
               (f : M ↪[L] N) <$>ₛ Term.realize vM t₂ := by
@@ -571,7 +619,6 @@ by
         Fam.sumElim default (f <$>ₛ xs).get
       let vN : (Fam.EmptyFam ⊕ₛ τ.IdxFam) →ₛ N :=
         Fam.sumElim default (fun s ↦ f s ∘ xs.get s)
-
       have hv : vF = vN := by
         ext s i
         cases i with
@@ -586,14 +633,12 @@ by
         | inl e => cases e
         | inr j =>
             rfl
-
       have hts : Term.realize vN ts = (f : M ↪[L] N) <$>ₛ Term.realize vM ts := by
         calc
           Term.realize vN ts = Term.realize ((f : M →ₛ N) ∘ₛ vM) ts := by simp only [hv',
             HomClass.realize_term]
           _ = (f : M ↪[L] N) <$>ₛ Term.realize vM ts := by
             simp only [(HomClass.realize_term (g := (f : M ↪[L] N)) (t := ts) (v := vM))]
-
       rw [BoundedFormula.Realize, BoundedFormula.Realize]
       calc
         RelMap R (Term.realize vF ts)
@@ -602,14 +647,11 @@ by
         _ ↔ RelMap R (Term.realize vM ts) := by
           simp only [(f.map_rel R (Term.realize vM ts))]
         _ ↔ RelMap R (Term.realize (Fam.sumElim default xs.get) ts) := by rfl
-
   | imp φ ψ ihφ ihψ =>
       simp_all only [BoundedFormula.Realize]
-
   | @all τ σ ψ ih =>
       -- `all σ ψ` quantifies over a whole right factor `σ`.
       -- We first generalize the single-sort TV hypothesis `htv` to a block version `htv'`.
-
       have htv' :
           ∀ (σ₀ τ₀ : Signature Sorts)
             (φ : L.BoundedFormula Fam.EmptyFam (σ₀.prod τ₀))
@@ -624,17 +666,15 @@ by
         | of s =>
             rcases htv s σ₀ (φ := φ) xs₀ (a := a₀) ha₀ with ⟨b, hb⟩
             refine ⟨(b : M[^](Signature.of s)), ?_⟩
-            simpa only [Pi.default_def] using hb
+            exact hb
         | prod τ₁ τ₂ ih₁ ih₂ =>
             -- write the N-witness as a pair
             rcases a₀ with ⟨a₁, a₂⟩
-
             -- reassociate so the last block is on the outside: σ₀ ⨯ (τ₁ ⨯ τ₂)  ≃  (σ₀ ⨯ τ₁) ⨯ τ₂
             let g : Signature.SigMap (σ₀ ⨯ (τ₁ ⨯ τ₂)) ((σ₀ ⨯ τ₁) ⨯ τ₂) :=
               Signature.SigMap.assocR (S := Sorts) σ₀ τ₁ τ₂
             let φ' : L.BoundedFormula Fam.EmptyFam (((σ₀ ⨯ τ₁) ⨯ τ₂)) :=
               φ.reindex g
-
             have hpull : Signature.Interpret.comap g
                 (⟨⟨(f <$>ₛ xs₀), a₁⟩, a₂⟩ : N[^](((σ₀ ⨯ τ₁) ⨯ τ₂)))
                 = (⟨(f <$>ₛ xs₀), (⟨a₁, a₂⟩ : N[^](τ₁ ⨯ τ₂))⟩ : N[^](σ₀ ⨯ (τ₁ ⨯ τ₂))) := by
@@ -647,8 +687,6 @@ by
               -- after rewriting the comap, this is exactly ha₀
               refine this ?_
               simpa only [Pi.default_def, hpull] using ha₀
-
-
             -- Step 1: pull back τ₁ using IH₁ applied to ∃τ₂ φ'
             have hex₁ : (φ'.ex τ₂).Realize default (⟨(f <$>ₛ xs₀), a₁⟩ : N[^](σ₀ ⨯ τ₁)) := by
               -- witness is a₂
@@ -656,30 +694,22 @@ by
                 (θ := φ') (η := τ₂) (v := (default : Fam.EmptyFam →ₛ N))
                 (xs := (⟨(f <$>ₛ xs₀), a₁⟩ : N[^](σ₀ ⨯ τ₁)))).2 ?_
               exact ⟨a₂, by simpa only [Pi.default_def] using ha'⟩
-
             rcases ih₁ (σ₀ := σ₀) (φ := (φ'.ex τ₂)) (xs₀ := xs₀) (a₀ := a₁) hex₁ with ⟨b₁, hb₁⟩
-
-
             rcases (BoundedFormula.realize_ex (L := L) (α := Fam.EmptyFam) (M := N)
               (θ := φ') (η := τ₂) (v := (default : Fam.EmptyFam →ₛ N))
               (xs := (⟨(f <$>ₛ xs₀), (f <$>ₛ b₁)⟩ : N[^](σ₀ ⨯ τ₁)))).1 hb₁ with ⟨a₂', ha₂'⟩
-
             -- Step 2: pull back τ₂ using IH₂, now with left tuple ⟨xs₀, b₁⟩ in M
             have ha₂'' : φ'.Realize default
                 (⟨⟨(f <$>ₛ xs₀), (f <$>ₛ b₁)⟩, a₂'⟩ : N[^](((σ₀ ⨯ τ₁) ⨯ τ₂))) := by
               simpa only [Pi.default_def] using ha₂'
-
             have hb₂_src : ∃ b₂ : M[^]τ₂,  φ'.Realize default
                 (⟨⟨(f <$>ₛ xs₀), (f <$>ₛ b₁)⟩, (f <$>ₛ b₂)⟩ : N[^](((σ₀ ⨯ τ₁) ⨯ τ₂))) := by
               -- apply IH₂ with σ₀ := (σ₀ ⨯ τ₁)
               apply ih₂ (σ₀ := (σ₀ ⨯ τ₁)) (φ := φ')
                 (xs₀ := (⟨xs₀, b₁⟩ : M[^](σ₀ ⨯ τ₁))) (a₀ := a₂')
               simpa only [Pi.default_def, Interpret.map_prod] using ha₂'
-
             rcases hb₂_src with ⟨b₂, hb₂⟩
-
             refine ⟨(⟨b₁, b₂⟩ : M[^](τ₁ ⨯ τ₂)), ?_⟩
-
             have hb₂' : φ.Realize default (Signature.Interpret.comap g
                 (⟨⟨(f <$>ₛ xs₀), (f <$>ₛ b₁)⟩, (f <$>ₛ b₂)⟩ : N[^](((σ₀ ⨯ τ₁) ⨯ τ₂)))) := by
               exact (BoundedFormula.realize_reindex (L := L) (α := Fam.EmptyFam) (M := N)
@@ -687,7 +717,6 @@ by
                 (xs := (⟨⟨(f <$>ₛ xs₀), (f <$>ₛ b₁)⟩, (f <$>ₛ b₂)⟩ : N[^](((σ₀ ⨯ τ₁) ⨯ τ₂))))).1 (by
                   simpa only [Pi.default_def, BoundedFormula.realize_reindex, comap_assocR, g, φ']
                     using hb₂)
-
             have hpull2 :
                 Signature.Interpret.comap g
                   (⟨⟨(f <$>ₛ xs₀), (f <$>ₛ b₁)⟩, (f <$>ₛ b₂)⟩ : N[^](((σ₀ ⨯ τ₁) ⨯ τ₂)))
@@ -697,7 +726,6 @@ by
                 BoundedFormula.realize_reindex, BoundedFormula.realize_ex, g, φ']
             rw[hpull2] at hb₂'
             exact hb₂'
-
       simp only [BoundedFormula.Realize]
       constructor
       · intro h b
@@ -708,13 +736,10 @@ by
       · intro h a
         by_contra hna
         rw[←BoundedFormula.realize_not (M:= N) (φ:= ψ) (v:= default) (xs := (f <$>ₛ xs, a))] at hna
-
         have hnot : (ψ.not).Realize default (⟨f <$>ₛ xs, a⟩ : N[^](τ.prod σ)) := by
           simpa only [Pi.default_def, BoundedFormula.realize_not] using hna
         rcases htv' τ σ (φ := ψ.not) xs a hnot with ⟨bs, hbs⟩
-
         have hψM : ψ.Realize default (⟨xs, bs⟩ : M[^](τ.prod σ)) := h bs
-
         have hψN : ψ.Realize (default : Fam.EmptyFam →ₛ N) (f <$>ₛ (⟨xs, bs⟩ : M[^](τ.prod σ))) :=
           (ih (xs := (⟨xs, bs⟩ : M[^](τ.prod σ)))).2 hψM
         apply hbs
@@ -743,10 +768,8 @@ def toElementaryEmbedding (f : M ≃[L] N) : M ↪ₑ[L] N where
   map_boundedFormula' := fun φ x => by
     have h := StrongHomClass.realize_boundedFormula (g := f) φ
       (v := (default : Fam.EmptyFam →ₛ M)) (xs := x)
-    have hdefault : ((f : M →ₛ N) ∘ₛ (default : Fam.EmptyFam →ₛ M)) = default := by
-      ext s e
-      cases e
-    simpa [hdefault] using h
+    simp only [Unique.uniq] at h
+    exact h
 
 @[simp]
 theorem toElementaryEmbedding_toEmbedding (f : M ≃[L] N) :
@@ -766,6 +789,6 @@ theorem realize_term_substructure {α : Fam Sorts} {S : L.Substructure M} {σ : 
     t.realize (S.subtype ∘ₛ v) = S.subtype <$>ₛ (t.realize v) :=
   HomClass.realize_term (g := S.subtype) (v := v) (t := t)
 
-end MSLanguage
+end Language
 
 end MSFirstOrder

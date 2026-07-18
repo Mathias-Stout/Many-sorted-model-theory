@@ -2,34 +2,33 @@
 Based on the corresponding Mathlib file by Aaron Anderson
 Released under Apache 2.0 license as described in the file LICENSE.
 -/
-import ProdExpr.ElementaryMapsMS
+import MultisortedLogic.ElementaryMapsMS
 
 /-!
 # Elementary Substructures
 
 ## Main Definitions
 
-- A `MSFirstOrder.MSLanguage.ElementarySubstructure` is a substructure where the realization of each
+- A `MSFirstOrder.Language.ElementarySubstructure` is a substructure where the realization of each
   formula agrees with the realization in the larger model.
 
 ## Main Results
 
 - The Tarski-Vaught Test for substructures:
-  `MSFirstOrder.MSLanguage.Substructure.isElementary_of_exists` gives a simple criterion for a
+  `MSFirstOrder.Language.Substructure.isElementary_of_exists` gives a simple criterion for a
   substructure to be elementary.
 -/
 
 universe u v z w
 
-open MSFirstOrder
 
 namespace MSFirstOrder
 
-namespace MSLanguage
+namespace Language
 
-open MSStructure
+open Structure
 variable {Sorts : Type z}
-variable {L : MSLanguage.{u, v, z} Sorts} {M : Fam.{w} Sorts} [L.MSStructure M]
+variable {L : Language.{u, v, z} Sorts} {M : Fam.{w} Sorts} [L.Structure M]
 
 /-- A substructure is elementary when every formula applied to a tuple in the substructure
   agrees with its value in the overall structure. -/
@@ -70,7 +69,7 @@ instance instDepSetLike : DepSetLike (L.ElementarySubstructure M) M where
 abbrev Subtype (S : L.ElementarySubstructure M) : Fam Sorts :=
   (S.toSubstructure).Subtype
 
-instance inducedMSStructure (S : L.ElementarySubstructure M) : L.MSStructure S :=
+instance inducedStructure (S : L.ElementarySubstructure M) : L.Structure S :=
   Substructure.inducedStructure (S := (S : L.Substructure M))
 
 @[simp]
@@ -82,7 +81,7 @@ def subtype (S : L.ElementarySubstructure M) : S ↪ₑ[L] M where
   toFun := ⟨fun s (x : S.Subtype s) => x.1⟩
   map_boundedFormula' := by
     intro σ φ x
-    simpa using (S.isElementary (σ := σ) φ x)
+    exact (S.isElementary (σ := σ) φ x)
 
 @[simp]
 theorem subtype_apply {S : L.ElementarySubstructure M} {s : Sorts} (x : S.Subtype s) :
@@ -98,7 +97,7 @@ theorem subtype_injective (S : L.ElementarySubstructure M) (s : Sorts) :
 instance instTop : Top (L.ElementarySubstructure M) :=
   ⟨⟨⊤, by
       intro σ φ x
-      letI : L.MSStructure ((⊤ : L.Substructure M).Subtype) :=
+      letI : L.Structure ((⊤ : L.Substructure M).Subtype) :=
         Substructure.inducedStructure (S := (⊤ : L.Substructure M))
       let mapx : M[^]σ := ((⊤ : DepSet M).subtypeVal <$>ₛ x)
       let vTop : Fam.EmptyFam →ₛ M :=
@@ -116,7 +115,8 @@ instance instTop : Top (L.ElementarySubstructure M) :=
       have hleft :
           φ.Realize (default : Fam.EmptyFam →ₛ M) mapx ↔ φ.Realize vTop mapx := by
         simp [hv]
-      simpa [mapx] using (hleft.trans htop.symm)
+      simp only [mapx] at hleft
+      exact hleft.trans htop.symm
       ⟩⟩
 
 
@@ -125,14 +125,12 @@ instance instInhabited : Inhabited (L.ElementarySubstructure M) :=
 
 @[simp]
 theorem mem_top {s : Sorts} (x : M s) :
-    x ∈ (((⊤ : L.ElementarySubstructure M) : L.Substructure M) s) := by
-  simpa only [DepSetLike.carrier_toDepSet] using
+    x ∈ (((⊤ : L.ElementarySubstructure M) : L.Substructure M) s) :=
     (Substructure.mem_top (L := L) (M := M) (s := s) x)
 
 @[simp]
 theorem top_apply (s : Sorts) :
-    ((((⊤ : L.ElementarySubstructure M) : L.Substructure M) s)) = Set.univ := by
-  rfl
+    ((((⊤ : L.ElementarySubstructure M) : L.Substructure M) s)) = Set.univ := rfl
 
 @[simp]
 theorem realize_sentence (S : L.ElementarySubstructure M) (φ : L.Sentence) :
@@ -165,8 +163,8 @@ theorem isElementary_of_exists (S : L.Substructure M)
             ∃ b : S s, φ.Realize default ⟨S.subtype <$>ₛ xs, S.subtype s b⟩) :
     S.IsElementary := by
   intro σ φ xs
-  simpa only [Signature.Interpret.mapClass_eq_map] using
-    (S.subtype.isElementary_of_exists htv (σ := σ) (φ := φ) (xs := xs))
+  simp only [Signature.Interpret.mapClass_eq_map]
+  exact (S.subtype.isElementary_of_exists htv (σ := σ) (φ := φ) (xs := xs))
 
 /-- Bundles a substructure satisfying the Tarski-Vaught test as an elementary substructure. -/
 @[simps]
@@ -182,6 +180,6 @@ def toElementarySubstructure (S : L.Substructure M)
 
 end Substructure
 
-end MSLanguage
+end Language
 
 end MSFirstOrder

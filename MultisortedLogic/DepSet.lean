@@ -1,7 +1,6 @@
-import ProdExpr.Fam
+import MultisortedLogic.Fam
 universe u v w z u' v' w'
 
-section dependent_sets
 namespace MSFirstOrder
 
 open Fam
@@ -42,7 +41,7 @@ lemma ofSigma_sigma (S : DepSet α) : ofSigma (S.sigma) = S := by
 /-- Coerce a `DepSet` to a set on `Sigma α` via `sigma`. -/
 instance : SetLike (DepSet α) (Sigma α) where
   coe := DepSet.sigma
-  coe_injective' := by
+  coe_injective := by
     intro S T h
     rcases S with ⟨X⟩
     rcases T with ⟨Y⟩
@@ -51,7 +50,9 @@ instance : SetLike (DepSet α) (Sigma α) where
     have hx : ((⟨s, x⟩ : Sigma α) ∈ ((⟨X⟩ : DepSet α ).sigma : Set (Sigma α))) ↔
               ((⟨s, x⟩ : Sigma α) ∈ ((⟨Y⟩ : DepSet α ).sigma : Set (Sigma α))) := by
       simp_all only
-    simpa [DepSet.sigma, Set.mem_sigma_iff] using hx
+    repeat' rw [DepSet.sigma] at hx
+    simp_all only
+    exact hx
 
 @[simp]
 theorem mem_sigma {S : DepSet α} {s : base} {x : α s} :
@@ -108,11 +109,8 @@ protected def singleton (x : Sigma α) : DepSet α :=
 
 instance instSingleton : Singleton (Sigma α) (DepSet α) := ⟨DepSet.singleton⟩
 
-
 @[simp] lemma mem_singleton {x y : Sigma α} :
-  y ∈ (DepSet.singleton (α := α) x) ↔ y = x := by
-  simpa only [singleton] using (Set.mem_singleton_iff (α := Sigma α))
-
+  y ∈ (DepSet.singleton (α := α) x) ↔ y = x := Eq.to_iff rfl
 
 @[simp] lemma mem_singleton' {x y : Sigma α} :
   y ∈ ({x} : DepSet α) ↔ y = x := by
@@ -155,8 +153,8 @@ def sigmaOrderIso : DepSet α ≃o Set (Sigma α) where
   toEquiv :=
   { toFun := fun S => (S : Set (Sigma α))
     invFun := DepSet.ofSigma
-    left_inv := by intro S; simpa using DepSet.ofSigma_sigma (α := α) S
-    right_inv := by intro S; simpa using DepSet.sigma_ofSigma (α := α) S }
+    left_inv := by intro S; simp_all only; rfl
+    right_inv := by intro S; simp_all only; rfl}
   map_rel_iff' := by
     intro A B
     rfl
@@ -192,6 +190,9 @@ instance instSupSet : SupSet (DepSet α) where
 /-- Set-theoretic infimum of dependent sets, pointwise by universal membership. -/
 instance instInfSet : InfSet (DepSet α) where
   sInf S := ⟨fun s => {x | ∀ T ∈ S, x ∈ T s}⟩
+
+instance : UsesSetNotationForOrder (DepSet α) :=
+  by exact { }
 
 @[simp]
 theorem mem_sSup {S : Set (DepSet α)} {s : base} {x : α s} :
@@ -285,7 +286,7 @@ theorem subset_iff {S T : DepSet α} :
     apply h
     simp_all only
 
-def subsetFam {S T : DepSet α} (h : S ⊆ T) : ∀ s, S s ⊆ T s :=
+theorem subsetFam {S T : DepSet α} (h : S ⊆ T) : ∀ s, S s ⊆ T s :=
   (subset_iff (S := S) (T := T)).1 h
 
 theorem _root_.Eq.subdepset {A B : DepSet α} : A = B → A ⊆ B := by
@@ -897,7 +898,7 @@ theorem bot_isFinite : (⊥ : DepSet α).IsFinite := by
 /-- If S ⊆ T and T is finite, then S is finite. -/
 theorem subset_isFinite {S T : DepSet α} (h : S ⊆ T) (hT : T.IsFinite) : S.IsFinite := by
   apply Set.Finite.subset hT
-  simp_all only [SetLike.coe_subset_coe, le_eq_subset]
+  simp_all only [SetLike.coe_subset_coe]
 
 /-- The union of two finite DepSets is finite. -/
 theorem sup_isFinite {S T : DepSet α} (hS : S.IsFinite) (hT : T.IsFinite) :
@@ -1031,5 +1032,3 @@ end DepSetLike
 end dep_setlike
 
 end MSFirstOrder
-
-end dependent_sets
