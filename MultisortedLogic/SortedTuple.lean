@@ -577,8 +577,8 @@ theorem toQuot_out_choice {σ : Signature S} (xs : (α /ₛ R) [^] σ) :
   induction σ with
   | nil => rfl
   | of _ =>
-    simp [choice, Interpret.mapClass, map, FamMapClass.toFamMap, MSQuotient.out, toQuot,
-      MSQuotient.mk]
+    simp only [toQuot, mapClass, map, FamMapClass.toFamMap, MSQuotient.mk, choice, MSQuotient.out,
+      FamMap.mk_apply]
     exact (Quotient.out_eq _).trans (Quotient.out_eq _)
   | prod σ τ hσ hτ =>
     cases xs
@@ -598,7 +598,7 @@ which will be needed in semantics.
 -/
 
 variable {α : Fam S}
-open Interpret
+open Signature.Interpret
 
 /-- The map of interpretations induced by a SigMap on signatures. -/
 def Interpret.comap

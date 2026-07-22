@@ -179,7 +179,7 @@ namespace Substructure
 open Set
 
 theorem le_def {S T : L.Substructure M} : S ≤ T ↔ ∀ s, S s ⊆ T s := by
-  simp only [DepSetLike.le_def, ge_iff_le, DepSet.le_eq_subset, DepSetLike.carrier_toDepSet]
+  simp only [DepSetLike.le_def, ge_iff_le, DepSetLike.carrier_toDepSet]
   change S ⊆ T ↔ ∀ (s : Sorts), S.carrier s ⊆ T.carrier s
   exact subset_intro_mem_eq (S:= S.toDepSet) (T:= T.toDepSet)
 
@@ -1001,7 +1001,7 @@ theorem comap_top (f : M →[L] N) : (⊤ : L.Substructure N).comap f = ⊤ :=
 @[simp]
 theorem map_id (S : L.Substructure M) : S.map (Hom.id L M) = S := by
   ext s x
-  simp only [map, Hom.id_apply, image_id', DepSetLike.carrier_toDepSet]
+  simp only [map, Hom.id_apply, DepSetLike.carrier_toDepSet]
   exact ⟨fun ⟨y, hy, hyx⟩ => hyx ▸ hy, fun hx => ⟨x, hx, rfl⟩⟩
 
 theorem map_closure (f : M →[L] N) (A: DepSet M) :
@@ -1230,7 +1230,7 @@ theorem realize_formula_top {α : Fam Sorts} {φ : L.Formula α}
     exact realize_boundedFormula_top (L := L) (φ := φ) (v := v) (xs := xsTop)
   have hmap :
       (((⊤ : DepSet M).subtypeVal) <$>ₛ xsTop) = (default : M[^]Signature.nil) := by
-    simp only [DepSet.top_eq_univ, PUnit.default_eq_unit, mapClass_eq_map, xsTop]
+    simp only [DepSet.top_eq_univ, PUnit.default_eq_unit, xsTop]
   have h' :
       BoundedFormula.Realize φ ((((⊤ : DepSet M).subtypeVal) ∘ₛ v) : (s : Sorts) → α s → M s)
           (((⊤ : DepSet M).subtypeVal) <$>ₛ xsTop) ↔

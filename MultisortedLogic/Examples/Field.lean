@@ -50,7 +50,7 @@ theorem realize_toSentence_iff_toProp [Add (M s)] [Mul (M s)] [Neg (M s)] [Zero 
   | existsPairNe =>
     rw [toProp, toSentence]
     simp [Sentence.Realize, Formula.Realize, BoundedFormula.Realize,
-      BoundedFormula.Quantifiable.mkAll, BoundedFormula.Quantifiable.mkEx]; rfl
+      BoundedFormula.Quantifiable.mkEx]; rfl
 
 lemma models_field_axioms (ax : FieldAxiom) [Field (M s)] [CompatibleRingL L M s] :
     M ⊨ ax.toSentence L s := by
@@ -118,9 +118,9 @@ theorem realize_toSentence_iff_toProp
     rw [toProp, toSentence]
     exact ta.realize_toSentence_iff_toProp
   | addLeAddLeft => simp [Sentence.Realize, Formula.Realize, BoundedFormula.Realize,
-      BoundedFormula.Quantifiable.mkAll, BoundedFormula.Quantifiable.mkEx]; rfl
+      BoundedFormula.Quantifiable.mkAll]; rfl
   | mulNonneg => simp [Sentence.Realize, Formula.Realize, BoundedFormula.Realize,
-      BoundedFormula.Quantifiable.mkAll, BoundedFormula.Quantifiable.mkEx]; rfl
+      BoundedFormula.Quantifiable.mkAll]; rfl
 
 lemma models_ofield_axioms
     [Field (M s)] [LinearOrder (M s)] [IsStrictOrderedRing (M s)]

@@ -1,6 +1,7 @@
 /-
-Based on the corresponding Mathlib file by Aaron Anderson
+Copyright (c) 2026 Mathias Stout. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Mathias Stout. Based on the corresponding Mathlib file by Aaron Anderson
 -/
 import MultisortedLogic.ElementarySubstructures
 import MultisortedLogic.Encoding
@@ -554,7 +555,7 @@ theorem exists_elementarySubstructure_card_eq
       simp only [Sigma.mk.injEq, hxy, true_and]
       rcases hxy with ⟨hxy, hsub⟩
       subst hxy
-      simp_all only [mk_sigma, lift_sum, ge_iff_le, heq_eq_eq, Subtype.mk.injEq, aleph0_le_lift]
+      simp_all only [mk_sigma, lift_sum, ge_iff_le, heq_eq_eq, aleph0_le_lift]
       obtain ⟨val, property⟩ := hx
       obtain ⟨val_1, property_1⟩ := hy
       exact Subtype.ext (show val = val_1 from Subtype.ext_iff.mp hsub)

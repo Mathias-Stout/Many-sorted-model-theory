@@ -1,7 +1,17 @@
+/-
+Copyright (c) 2026 Jonas van der Schaaf. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Jonas van der Schaaf
+-/
+
 import MultisortedLogic.Examples.Ring
 import MultisortedLogic.Bundled
 import Mathlib.RingTheory.FreeCommRing
 
+/-!
+  In this file it is demonstrated that terms in the language of rings may be viewed
+  as polynomials.
+-/
 
 namespace MSFirstOrder
 open Language Term Theory
@@ -164,9 +174,9 @@ theorem polynomial_ofTerm_eval {M : Fam.{w} Sorts} [(ring s).Structure M]
         rw [hts hσ]
         simp only [lift]
         erw [compat.neg_eq]
-      · simp only [realize_func, lift, polynomial_ofTerm, MvPolynomial.eval₂_zero, ←compat.zero_eq]
+      · simp only [lift, polynomial_ofTerm, MvPolynomial.eval₂_zero, ←compat.zero_eq]
         rfl
-      · simp only [realize_func, lift, polynomial_ofTerm, MvPolynomial.eval₂_one, ←compat.one_eq]
+      · simp only [lift, polynomial_ofTerm, MvPolynomial.eval₂_one, ←compat.one_eq]
         rfl
     | prod _ _ ht₁ ht₂ =>
       apply Prod.ext

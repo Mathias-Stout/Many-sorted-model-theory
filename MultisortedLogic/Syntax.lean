@@ -2600,12 +2600,11 @@ lemma closeVars_openVars {σ τ : Signature Sorts} {X : Fam Sorts}
           cases w
           · simp_all only [Term.bind, FamMap.mk_apply, FamMap.comp_apply']
             rfl
-          · simp_all only [FamMap.mk_apply, Term.bind, sumMap_inl_apply, FamMap.idₛ_apply',
-              Sum.elim_inr, FamMap.comp_apply', Sum.elim_inl, bind_bind, sumMap_inr_apply]
+          · simp_all only [FamMap.mk_apply, Term.bind, FamMap.comp_apply', bind_bind]
             rfl
         · case inr =>
             simp_all only [FamMap.mk_apply, Term.bind, sumMap_inr_apply, incl_right_apply,
-              FamMap.idₛ_apply', Sum.elim_inr, FamMap.comp_apply']
+              FamMap.idₛ_apply', FamMap.comp_apply']
             rfl
       }
   | @rel σ' τ' R ts =>

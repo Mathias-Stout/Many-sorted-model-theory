@@ -502,7 +502,7 @@ def ElementaryEmbedding.ofModelsElementaryDiagram (N : Fam Sorts) [L.Structure N
       Term.realize_varterm, t]
     ext s w
     simp_all only [get_map, Fam.FamMap.comp_apply',
-      Fam.FamMap.mk_apply, Term.realize_constants, fromGet_get, Fam.coeFun_apply, evalConst,
+      Fam.FamMap.mk_apply, fromGet_get, Fam.coeFun_apply, evalConst,
       constantsInr]
     rfl
   · simp only [Sentence.Realize, BoundedFormula.realize_fully_instantiate, PUnit.default_eq_unit,

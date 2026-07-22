@@ -280,7 +280,7 @@ theorem boundedFormula_realize {β : Fam Sorts} {σ : Signature Sorts} (φ : L.B
       ext s b
       cases b
       · rfl
-      · simp only [sumElim_eval_r, get_toQuot, FamMap.comp_apply']
+      · simp only [sumElim_eval_r, get_toQuot]
         rfl
     simp only [BoundedFormula.Realize]
     induction τ with
@@ -305,7 +305,7 @@ theorem boundedFormula_realize {β : Fam Sorts} {σ : Signature Sorts} (φ : L.B
       ext s b
       cases b
       · rfl
-      · simp only [sumElim_eval_r, get_toQuot, FamMap.comp_apply']
+      · simp only [sumElim_eval_r, get_toQuot]
         rfl
     simp only [BoundedFormula.Realize]
     rw [h, Term.realize_quotient_mk']

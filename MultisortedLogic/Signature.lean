@@ -661,7 +661,7 @@ private def getIdxFamInv (σ : Signature S) : Sigma σ.IdxFam → Fin σ.length
       rw [show (⟨(↑(Idx.toFin (σ := σ ⨯ τ) (s := s) (Idx.right w)) : ℕ) - σ.length,
           nat_lt_lemma (Idx.toFin (σ := σ ⨯ τ) (s := s) (Idx.right w)).is_lt hle⟩ :
           Fin τ.length) = w.toFin from Fin.ext (by
-            show σ.length + (↑(Idx.toFin (σ := τ) (s := s) w) : ℕ) - σ.length =
+            change σ.length + (↑(Idx.toFin (σ := τ) (s := s) w) : ℕ) - σ.length =
               ↑(Idx.toFin (σ := τ) (s := s) w)
             omega), ih₂ w]
 
@@ -1481,7 +1481,7 @@ lemma fromSorts_iff_toList {A : Set S} {σ : Signature S} :
     case mpr =>
       intro h
       constructor <;>
-      simp_all only [toList, List.mem_append, true_or, implies_true, iff_true, or_true]
+      simp_all only [toList, List.mem_append, true_or, implies_true, or_true]
 
 theorem fromSorts_of_toList {A : Set S} {σ : Signature S}
   (h : ∀ t ∈ σ.toList, t ∈ A) : fromSorts A σ := fromSorts_iff_toList.mpr h

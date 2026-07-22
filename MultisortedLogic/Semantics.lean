@@ -420,13 +420,12 @@ theorem realize_constantsToVars
     case inr v =>
       cases σ
       case nil =>
-        simp_all only [reduce_nil, PUnit.default_eq_unit, constantsToVars, realize_var,
-          realize_func]
+        simp_all only [reduce_nil, PUnit.default_eq_unit, constantsToVars]
         rfl
       case of =>
         cases v
       case prod =>
-        simp_all only [constantsToVars, realize_func]
+        simp_all only [constantsToVars]
         cases v
   | @prod σ τ tσ tτ ihσ ihτ =>
     simp_all only [constantsToVars, realize_prod]
@@ -447,7 +446,7 @@ theorem realize_varsToConstants
       -- ab : (α ⊕ₛ β) s  i.e. Sum (α s) (β s)
       cases ab with
       | inl a =>
-          simp only [varsToConstants, realize_constants, realize, Fam.sumElim]
+          simp only [varsToConstants, realize, Fam.sumElim]
           rfl
       | inr b =>
           simp only [varsToConstants, realize_var, realize, Fam.sumElim]; rfl
@@ -477,9 +476,9 @@ theorem realize_constantsVarsEquivLeft
       rfl
   | inr w =>
       cases w
-      · simp_all only [FamMap.mk_apply, realize_var, sumElim_eval_r, sumElim_eval_l]
+      · simp_all only [FamMap.mk_apply, realize_var]
         rfl
-      · simp_all only [FamMap.mk_apply, realize_var, sumElim_eval_r]
+      · simp_all only [FamMap.mk_apply, realize_var]
         rfl
 
 end Term
@@ -1466,11 +1465,10 @@ theorem realize_toBoundedFormula
     · unfold Formula.Realize
       rw[PUnit.eq_punit default]
     · intro s a h
-      simp_all only [comap_fromGet, FamMap.idₛ_apply', FamMap.comp_apply', FamMap.mk_apply,
-        sumElim_eval_r]
+      simp_all only [comap_fromGet, FamMap.idₛ_apply', FamMap.comp_apply']
       unfold comap
       simp only [fromGet_right, FamMap.comp_apply', SigMap.incl_right_apply]
-      simp only [mk_apply, FamMap.mk_apply, coeFun_apply]
+      simp only [mk_apply, FamMap.mk_apply]
       change (x s (Subtype.val (lf.e.invFun s ((SigEquiv.nilLeft lf.τ).toFun s
         (lf.e.toFun s ⟨a, h⟩).right))) ) = x s a
       congr!
@@ -1665,7 +1663,7 @@ theorem _root_.MSFirstOrder.Language.Formula.realize_iAlls
       simp_all only [fromGet_get, sumElim_eval_l, σ, e]
       rfl
     case inr u =>
-      simp only [fromGet_get, sumElim_eval_r, sumMap_inr_apply, coeFun_apply, FamMap.comp_apply']
+      simp only [fromGet_get, sumElim_eval_r]
       exact congrArg (fun x => v' s x) (MSEquiv.symm_toFun_toFun e s u)
   · intro h xs b
     simp_all only [reduce_nil, PUnit.default_eq_unit]
@@ -1896,15 +1894,15 @@ theorem _root_.MSFirstOrder.Language.Formula.realize_iExsUnique {X : Fam Sorts} 
       apply realize_eq_val h'
       ext s w
       cases w
-      · simp_all only [sumElim_eval_l, FamMap.comp_apply']
+      · simp_all only [sumElim_eval_l]
         rfl
-      · simp_all only [sumElim_eval_r, FamMap.comp_apply']
+      · simp_all only [sumElim_eval_r]
         rfl
     let h'' := h this ⟨s, a⟩
     exact h''.symm
   · intro hi h sx
     simp only [Term.equal, Term.mapVars, Term.bind, inl, FamMap.mk_apply, Fam.sumElim,
-      realize_bdEqual, Interpret.get, Term.realize_var, Sum.elim_inl, Sum.elim_inr]
+      realize_bdEqual, Interpret.get, Term.realize_var]
     rw[hi]
     · rfl
     · exact realize_eq_val h (by ext s w; cases w <;> rfl)
@@ -2070,14 +2068,13 @@ theorem realize_symmetric : M ⊨ r.symmetric ↔ Std.Symm fun x y : M s => i.Re
     intro a b hab
     apply h
     simp_all only [PUnit.default_eq_unit, SigMap.extend_right, SigEquiv.symm, realize_reindex,
-      realize_rel₂, get_comap, FamMap.mk_apply, Term.realize_prod, Term.realize_var, sumElim_eval_r,
-      coeFun_apply]
+      realize_rel₂, get_comap, FamMap.mk_apply, Term.realize_prod]
     exact hab
   · intro h a b hab
     simp_all only [PUnit.default_eq_unit]
     apply h.symm
     simp_all only [SigMap.extend_right, SigEquiv.symm, realize_reindex, realize_rel₂, get_comap,
-      FamMap.mk_apply,Term.realize_prod, Term.realize_var, sumElim_eval_r, coeFun_apply]
+      FamMap.mk_apply,Term.realize_prod]
     exact hab
 
 @[simp]
@@ -2090,10 +2087,10 @@ theorem realize_antisymmetric :
     intro a b hab hba
     apply h
     · simp_all only [PUnit.default_eq_unit, realize_reindex, realize_rel₂, get_comap,
-        Term.realize_prod, Term.realize_var, sumElim_eval_r, coeFun_apply]
+        Term.realize_prod]
       exact hab
     · simp_all only [PUnit.default_eq_unit, realize_reindex, realize_rel₂, get_comap,
-        Term.realize_prod, Term.realize_var, sumElim_eval_r, coeFun_apply]
+        Term.realize_prod]
       exact hba
   · intro h a
     simp_all only [PUnit.default_eq_unit, realize_reindex]
@@ -2151,7 +2148,7 @@ open Signature Interpret
       BoundedFormula.realize_top, reduce_nil, PUnit.default_eq_unit, ne_eq, IsEmpty.forall_iff]
   | of =>
     simp only [BoundedFormula.distinct_from, Term.bdEqual, eq_mp_eq_cast, cast_eq, eq_mpr_eq_cast,
-      BoundedFormula.realize_not, BoundedFormula.Realize, Term.realize_var, ne_eq]
+      BoundedFormula.realize_not, BoundedFormula.Realize, ne_eq]
     constructor
     · intro h w; cases w; exact h
     · intro h ; exact h (Idx.var)
@@ -2204,7 +2201,7 @@ open Signature Interpret
     exact IsEmpty.elim (IdxNilEmpty (s := s)) i
   | succ n ih =>
     rcases xs with ⟨xs', x⟩
-    show ((BoundedFormula.distinct L s n).reindex SigMap.incl_left ⊓
+    change ((BoundedFormula.distinct L s n).reindex SigMap.incl_left ⊓
         BoundedFormula.distinct_from L s (Signature.repeat n s) (Signature.oneSort_repeat s n) :
         L.BoundedFormula α (Signature.repeat n s ⨯ ⦃s⦄)).Realize v (xs', x) ↔ _
     rw [BoundedFormula.realize_inf, BoundedFormula.realize_reindex, ih]
@@ -2310,11 +2307,10 @@ theorem model_distinctConstantsAtSortTheory {M : Fam Sorts} [L[[α]].Structure M
   refine ⟨fun h a as b bs ab => ?_, ?_⟩
   · contrapose! ab
     have h' := h _ a b ⟨⟨as, bs⟩, ab⟩ rfl
-    simp only [Sentence.Realize, Formula.realize_not, Formula.realize_equal,
-      Term.realize_constants] at h'
+    simp only [Sentence.Realize, Formula.realize_not, Formula.realize_equal] at h'
     exact h'
   · rintro h φ a b ⟨⟨as, bs⟩, ab⟩ rfl
-    simp only [Sentence.Realize, Formula.realize_not, Formula.realize_equal, Term.realize_constants]
+    simp only [Sentence.Realize, Formula.realize_not, Formula.realize_equal]
     exact fun contra => ab (h as bs contra)
 
 theorem card_le_of_model_distinctConstantsAtSortTheory (S : Set (α s)) (M : Fam.{w} Sorts)

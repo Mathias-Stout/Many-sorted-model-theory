@@ -1,10 +1,16 @@
+/-
+Copyright (c) 2026 Mathias Stout. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Mathias Stout
+-/
 import MultisortedLogic.Examples.Field
 import MultisortedLogic.Examples.Prec
 import Mathlib.RingTheory.Valuation.ValuativeRel.Basic
 import Mathlib.RingTheory.LocalRing.ResidueField.Ideal
 
-
-
+/-!
+  A file developing the language of valued fields in the three-sorted setting.
+-/
 namespace MSFirstOrder
 namespace Language
 open Signature BoundedFormula deBruijnVar
@@ -12,12 +18,7 @@ open Signature BoundedFormula deBruijnVar
 universe u v w z u' v' w' z'
 
 section language_schemas
-/--
-Sorts for the language of valued fields with leading term sorts.
-We can aim for a large set of these to cover the standard kinds of
-imaginary sorts we want to consider, then take reducts by restriction
-of Sorts to specialize, or we can just leave some sorts empty.
--/
+
 inductive VFSort (vals : Type _) : Type _ where
   | K : VFSort vals --Valued Field
   | V : VFSort vals --Value Group (with infinity)

@@ -22,6 +22,7 @@ namespace MSFirstOrder
 open Signature
 
 section LanguageDefs
+set_option linter.checkUnivs false
 @[ext]
 structure Language (S : Type z) where
   Functions : Signature S → S → Type u

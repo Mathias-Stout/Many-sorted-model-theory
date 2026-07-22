@@ -1,6 +1,15 @@
+/-
+Copyright (c) 2026 Mathias Stout. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Mathias Stout
+-/
 import MultisortedLogic.Semantics
 import MultisortedLogic.Satisfiable
-
+/-!
+  This file contains the definitions of atomic and quantifier-free formulas, as well as the
+  notion of being quantifier free except for quantification over ceratain sorts. The definitions
+  are used in the later work on quantifier elimination.
+-/
 universe u v w u' w' v' z
 
 namespace MSFirstOrder
