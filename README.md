@@ -1,7 +1,7 @@
 # About
 
 The first goal of this repository is to formalize a framework for many-sorted logic in Lean4.
-We aim to extend the current one-sorted definitions and theorems currently in [Mathlib](https://leanprover-community.github.io/mathlib4_docs/Mathlib/ModelTheory/Basic.html), with the goal of developing a stable base for formalizing more advanced results, in particular around the model theory of valued fields.
+We aim to extend the current one-sorted definitions and theorems in [Mathlib](https://leanprover-community.github.io/mathlib4_docs/Mathlib/ModelTheory/Basic.html), with the goal of developing a stable base for formalizing more advanced results, in particular around the model theory of valued fields.
 
 ## Feedback welcome!
 
@@ -14,82 +14,100 @@ You can also contact us directly via our institutional emails: [Aaron Crighton](
 ## Contributing
 
 As our end goal is to make formalization more accessible to the wider model theory community, we welcome any interested contributors.
-However, in that spirit, all definitions are still very much susceptible to change.
-Fixes, small upgrades and partial reworks are all welcome, but there is currently no blueprint towards building more advanced results, although there are some concrete plans for the near future: see `CONTRIBUTING.md`.
+In that spirit, all definitions are still very much susceptible to change.
+Fixes, small upgrades and partial reworks are all welcome, but there is currently no public blueprint.
 
 ## Repository structure
 
-This repository consists of two main folders, `MultisortedLogic` and `ProdExpr`.
-The folder `MultisortedLogic` contains a more naive first approach on which the `ProdExpr` folder iterates, based on a suggestion by Adam Topaz.
+This repository generalizes the one-sorted setup for first-order logic currently in Mathlib to many sorts. Files with similar names to the existing Mathlib files indicate similar, but more general developments.
 
-The main differences between both approaches are explained below.
+The Examples folder contains the statements of some basic `L`-theories for various first-order languages `L` and links them back to the corresponding Mathlib objects.
 
-### MultisortedLogic
+## About many-sorted first-order logic
 
-This approach can be summarized as taking the existing Mathlib definitions and generalizing them to a dependent setting.
+In one-sorted first-order logic, one considers a language `L` which contains function and relation symbols that are used to talk about a single set `M`. An example is given by the group language `L_group = {*,1,(·)⁻¹}`. This language is naturally interpreted in any group `G`, where the purely syntactic symbols from `L_group` gain meaning as actual functions `*_G, 1_G, (·)⁻¹_G`.
 
-A many sorted language `L` over a type `Sorts` consists of a collection of function and relation symbols for each `List Sorts`. Here the type `Sorts` represents the different model-theoretic sorts of the language, a notion entirely orthogonal to Lean's `Sort u`.
+Many-sorted logic is useful to talk about structures that are made up of many different interacting sets or 'sorts' (Note: this notion of sorts is independent of Lean's notion of `Sort`). A particularly relevant example is that of valued fields. Their model theory is often studied in a three-sorted setting with sorts `VF, RF, VG` for respectively the valued field, residue field and value group. A language `L` on these three sorts might include a function symbol for the valuation `v`, with domain `VF` and target `VG`.
 
-Terms and formulas are built up as usual by a set of inductive rules. In particular, a term in a family of variables (names) `\alpha : Sorts \to Type*` and is formalized as follows
+As a note to those familiar with many-sorted logic: an important reason for developing a proper multi-sorted logic framework is the need to handle infinitely many sorts at once for more advanced results on e.g. elimination of imaginaries down the line.
 
-```lean4
-inductive Term (L : MSLanguage.{u, v, z} Sorts) (α : Sorts → Type u') : Sorts → Type max z u' u
-    -- A term landing in `t : Sort` is either a variable symbol
- | var t : (α t) → L.Term α t
-    -- Or the application of a function symbol to a family of existing terms,
-    -- if that family has the correct output sorts
- | func (σ : List (Sorts)) t : ∀ (_ : L.Functions σ t),
-    ((i : Fin σ.length) → L.Term α (σ.get i)) → L.Term α t
-```
+## Some notes on the current definitions
 
-This corresponds rather directly to the informal construction. Moreover, type correctness corresponds to syntactic well-formedness: an object of type `Term` is always a well-formed term in the sense of first-order logic.
-However, by passing a dependent type `((i : Fin σ.length) → L.Term α (σ.get i))`, casts over the list of required sorts `σ` quickly start to accumulate and become unwieldy, even when doing basic constructions.
+The basic definitions of Languages and structures here were influenced by this [Lean Zulip thread](https://leanprover.zulipchat.com/#narrow/channel/287929-mathlib4/topic/Many-sorted.20model.20theory), in particular by the suggestion of Adam Topaz.
 
+### Signature (of function symbols and formulas)
 
-### ProdExpr
+The key idea behind encoding the signature of function and relation symbols is that they will be interpreted as actual functions on an (inhomogeneous) product of types.
+Hence, they should reflect the fact that the product of types is not associative: `(X x Y) x Z ≠ X x (Y x Z)` (though there is a canonical isomorphism).
 
-The two fundamental differences with the `MultisortedLogic` were suggested by Adam Topaz on Zulip, and are as follows
-
-First, instead of describing the signature of function and relation symbols by lists, we use a type `ProdExpr`, representing a nonassociative "product expression" over a type `S`.
-
+Concretely, we have the following definitions in `Signature.lean`
 ````lean4
-inductive ProdExpr (S : Type u) where
-  | nil  : ProdExpr S
-  | of   : S → ProdExpr S
-  | prod : ProdExpr S → ProdExpr S → ProdExpr S
+inductive Signature (S : Type u) where
+  | nil  : Signature S
+  | of   : S → Signature S
+  | prod : Signature S → Signature S → Signature S
 ````
 
-A first-order structure over `Sorts : Type*` associates to each such possible expression a product of types.
-
 ````lean4
-def ProdExpr.Interpret {S : Type u} (X : S → Type v) : ProdExpr S → Type v
-  | .nil       => PUnit
-  | .of s      => X s
-  | .prod a b  => Interpret X a × Interpret X b
+@[reducible]
+def Signature.Interpret {S : Type u} (X : Fam.{v} S) : Signature S → Type v
+  | 0         => PUnit
+  | .of s     => X s
+  | prod a b  => Interpret X a × Interpret X b
+
+notation:80 X " [^] " σ:81 => MSFirstOrder.Signature.Interpret X σ
 ````
 
-The nonassociativity of `ProdExpr` reflects that their resulting interpretations are only associative up to isomorphism.
+### Many-sorted languages and structures
 
-Instead of defining a term with "output" `t : Sort`, we now directly define tuples of terms with "output signature" `σ : ProdExpr Sorts`:
+A many-sorted language then consists of a collection of (possibly empty) function and relation symbols for each signature. Again, note that the use of the word 'sort' in model theory is orthogonal to Lean's `Sort`.
 
 ````lean4
-inductive Term (L : MSLanguage.{u, v, z} Sorts) (α : Sorts → Type u') :
-    ProdExpr Sorts → Type max z u' u where
--- Variables of type `s : S` give terms of type `s : S`.
-| var (s : Sorts) : α s → L.Term α (.of s)
--- If we have a term of type `s : ProdExpr S` and a function in the language to `t : S`, then
--- applying the function results in a term of type `t : S`.
-| func {σ : ProdExpr Sorts} {t : Sorts} (f : L.Functions σ t) (r : L.Term α σ) : L.Term α (.of t)
--- If we have terms of type `s` and `t` then combining them results in a term of type `s.prod t`.
-| prod {σ τ : ProdExpr Sorts} : L.Term α σ → L.Term α τ → L.Term α (σ.prod τ)
+structure Language (S : Type z) where
+  Functions : Signature S → S → Type u
+  Relations : Signature S → Type v
+````
+
+The notion of a structure is a class on a dependent type over the sorts `S` of the language. It carries interpretations of all of the function and relation symbols, on the correct cartesian product of types.
+
+````lean4
+class Structure {S} (L : Language S) (M : Fam.{w} S) where
+  funMap : ∀ {σ t}, L.Functions σ t → M [^] σ → M t := by
+      exact fun {σ} => fun {t} => isEmptyElim
+  RelMap : ∀ {σ}, L.Relations σ → (M [^] σ)  → Prop := by
+      exact fun {σ} => isEmptyElim
+````
+
+### Terms and formulas
+
+The next step is the inductive definition of terms. Note that we immediately define tuples of terms as basic syntactic objects. This helps eliminate tedious casts that would otherwise be associated to plugging in dependent tuples of terms into other terms.
+
+````lean4
+inductive Term (L : Language.{u, v, z} Sorts) (α : Fam.{u'} Sorts) :
+    Signature Sorts → Type max z u' u where
+| var (s : Sorts) : α s → L.Term α (of s)
+| func {σ : Signature Sorts} {t : Sorts} (f : L.Functions σ t) (r : L.Term α σ) : L.Term α (.of t)
+| prod {σ τ : Signature Sorts} : L.Term α σ → L.Term α τ → L.Term α (σ ⨯ τ)
 | nil : L.Term α .nil
 ````
 
-Thus a tuple of terms `Term L α σ` remembers how it is constructed, due to the nonassociative nature of `σ`, leading to less casts and generally clearer code, at the costs of a host of easy but slightly tedious lemmas around `ProdExpr` in `Signature.lean` and `SortedTuple.lean`.
+Finally, formulas are built up inductively as in the first-order case. As in Mathlib, there are two families of variables around: one dependent family of names `α` and one family of indexed variables which act like de Bruijn indices. Intuitively, a `L.BoundedFormula α σ` corresponds to the semantic notion of an `α`-definable set in the Cartesian product `M [^] σ` (see `Signature.Intepret` above).
+
+````lean4
+/-- A bounded formula for a many-sorted language `L`, with free variables in `α`. -/
+inductive BoundedFormula (α : Fam.{u'} Sorts) : Signature Sorts → Type (max u v z u')
+  | falsum {σ} : BoundedFormula α σ
+  | equal {σ τ}  (t₁ t₂ : L.Term (α ⊕ₛ σ.IdxFam) τ) : BoundedFormula α σ
+  | rel {σ σ'} (R : L.Relations σ') (ts : (L.Term (α ⊕ₛ σ.IdxFam) σ')) :  BoundedFormula α σ
+  /-- The logical implication of two bounded formulas-/
+  | imp {σ} (f₁ f₂ : BoundedFormula α σ) :  BoundedFormula α σ
+  /-- Adds a universal quantifier to a bounded formula-/
+  | all {σ} (τ) (f : BoundedFormula α (σ ⨯ τ)) :  BoundedFormula α σ
+````
 
 ## References
 
-The files `Basic.Lean`, `LanguageMap.lean`, `Syntax.lean` and `Semantics.lean` in both folders are based on the files with the same name from [Mathlib](https://leanprover-community.github.io/mathlib4_docs/Mathlib/ModelTheory/Basic.html#FirstOrder.Language.Structure), authored by Aaron Anderson, Jesse Michael Han and Floris van Doorn. First versions of this appeared in the Flypitch project:
+The files `Basic.lean`, `LanguageMap.lean`, `Syntax.lean` and `Semantics.lean` in both folders are based on the files with the same name from [Mathlib](https://leanprover-community.github.io/mathlib4_docs/Mathlib/ModelTheory/Basic.html#FirstOrder.Language.Structure), authored by Aaron Anderson, Jesse Michael Han and Floris van Doorn. First versions of this appeared in the Flypitch project:
 
 - [J. Han, F. van Doorn, *A formal proof of the independence of the continuum hypothesis*](https://flypitch.github.io/papers/)
 - [J. Han, F. van Doorn, *A formalization of forcing and the unprovability of
