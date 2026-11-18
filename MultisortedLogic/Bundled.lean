@@ -1,285 +1,262 @@
 /-
-Based on the corresponding Mathlib file by Aaron Anderson
+Copyright (c) 2026 Mathias Stout. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Aaron Crighton, John Nicholson, Mathias Stout
 -/
-import MultisortedLogic.Skolem
+module
+
+public import MultisortedLogic.ElementarySubstructures
+public import MultisortedLogic.Satisfiability
 
 /-!
-# Bundled Many-Sorted Structures and Models
+# Bundled structures and models
 
-This is the many-sorted analogue of Mathlib's `ModelTheory/Bundled.lean`, using a custom
-bundle type (`StructureType`) instead of `CategoryTheory.Bundled`.
+## Main definitions
+
+* `Language.StructureType L`: a family of carriers with an `L`-structure, Mathlib's
+  `CategoryTheory.Bundled L.Structure`; `StructureType.equivSetoid` is isomorphism.
+* `Theory.ModelType T`: a model of `T` with nonempty sorts.
+* `Theory.ModelType.equivInduced`, `shrink`, `ulift`: a model transported along a family of
+  equivalences, in particular to another universe.
+* `Theory.ModelType.reduct`, `defaultExpansion`, `subtheoryModel`: models along maps of languages
+  and inclusions of theories.
+* `ElementarilyEquivalent.toModel`, `ElementarySubstructure.toModel`: structures elementarily
+  equivalent to a model, bundled as models.
+
+## Main results
+
+* `Theory.realizationEquivModelType`: the realizations of a theory are its models in the universe of
+  the language. So `T.IsSatisfiable` says that `T` has a model in that universe
+  (`Theory.isSatisfiable_iff_nonempty_modelType`), as in Mathlib.
+
+## Implementation notes
+
+A bundled structure or model coerces to its family of carriers, so `M s` is the carrier of sort
+`s`. The rest of the library states its results for unbundled structures, and quantifies over
+realizations where Mathlib quantifies over `Theory.ModelType`.
+
+## References
+
+This file was originally based on `Mathlib/ModelTheory/Bundled.lean`, by Aaron Anderson.
 -/
 
-universe u v z w w' x
+@[expose] public section
 
-namespace MSFirstOrder
+universe u v w w' z u' v'
 
-namespace Language
+namespace ManySorted.Language
 
-open  Structure Cardinal
+open Arity Structure
 
+variable {S : Type z} {L : Language.{u, v} S}
 
-variable {Sorts : Type z} {L : Language.{u, v, z} Sorts} {L' : Language Sorts}
+/-! ### Bundled structures -/
 
-section structure_type
-
-variable (L : Language.{u, v, z} Sorts)
-
-/-- A bundled many-sorted `L`-structure with every sort nonempty. -/
+variable (L) in
+/-- A bundled `L`-structure: a family of carriers with an `L`-structure. -/
 structure StructureType where
-  Carrier : Fam.{w} Sorts
+  /-- The carriers. -/
+  Carrier : S → Type w
+  /-- The structure on the carriers. -/
   [struc : L.Structure Carrier]
-  [nonempty' : ∀ {s : Sorts}, Nonempty (Carrier s)]
-
--- As in Mathlib's bundled file, bump priorities so these instances win when needed.
-attribute [instance 2000] StructureType.struc StructureType.nonempty'
-
-end structure_type
 
 namespace StructureType
 
-attribute [coe] StructureType.Carrier
+attribute [coe] Carrier
 
-instance instCoeTC (L : Language Sorts) : CoeTC (StructureType L) (Fam Sorts) :=
-  ⟨StructureType.Carrier⟩
+attribute [instance] struc
 
-instance instStructure (L : Language Sorts) (M : StructureType L) :
-    L.Structure (M : Fam Sorts) :=
-  M.struc
+instance : CoeFun L.StructureType fun _ => S → Type w :=
+  ⟨Carrier⟩
 
-instance instNonemptySort (L : Language Sorts) (M : StructureType L) {s : Sorts} :
-    Nonempty ((M : Fam Sorts) s) :=
-  M.nonempty'
-
-/-- Bundle an existing structure and per-sort nonemptiness. -/
-def of (L : Language Sorts) (M : Fam Sorts) [L.Structure M] [∀ s, Nonempty (M s)] :
-    StructureType L :=
+variable (L) in
+/-- Bundle a structure. -/
+def of (M : S → Type w) [L.Structure M] : L.StructureType :=
   ⟨M⟩
 
 @[simp]
-theorem coe_of (L : Language Sorts) (M : Fam Sorts) [L.Structure M] [∀ s, Nonempty (M s)] :
-    ((of L M : StructureType L) : Fam Sorts) = M :=
+theorem coe_of (M : S → Type w) [L.Structure M] : ⇑(of L M) = M :=
   rfl
 
-/-- Isomorphism relation on bundled many-sorted structures. -/
-instance equivSetoid (L : Language Sorts) : Setoid (StructureType L) where
-  r M N := Nonempty ((M : Fam Sorts) ≃[L] (N : Fam Sorts))
-  iseqv :=
-    ⟨fun M => ⟨Language.Equiv.refl L (M : Fam Sorts)⟩,
-      fun {_ _} => Nonempty.map Language.Equiv.symm,
-      fun {_ _ _} => Nonempty.map2 fun MN NP => Language.Equiv.comp NP MN⟩
+variable (L) in
+/-- Isomorphism of bundled structures. -/
+instance equivSetoid : Setoid L.StructureType where
+  r M N := Nonempty (M ≃[L] N)
+  iseqv := ⟨fun M => ⟨Equiv.refl L M⟩, fun ⟨e⟩ => ⟨e.symm⟩, fun ⟨e⟩ ⟨f⟩ => ⟨f.comp e⟩⟩
 
 end StructureType
 
-namespace Fam.MSEquiv
+section Induced
 
-variable {M : Fam.{w} Sorts} {N : Fam.{w'} Sorts}
+variable {M : S → Type w} {N : S → Type w'} [L.Structure M] (e : ∀ s, M s ≃ N s)
 
-/-- A many-sorted family equivalence induces a bundled structure on the codomain. -/
-def bundledInduced (L : Language.{u, v, z} Sorts) [L.Structure M] [∀ s, Nonempty (M s)]
-    (g : M ≃ₛ N) :
-    StructureType.{u, v, z, w'} L where
-  Carrier := N
-  struc := Language.Equiv.inducedStructure (L := L) g
-  nonempty' := by
-    intro s
-    rcases (‹∀ s, Nonempty (M s)› s) with ⟨m⟩
-    exact ⟨g s m⟩
+variable (L) in
+/-- The `L`-structure on `N` transported from `M` along a family of equivalences, bundled. -/
+def Equiv.bundledInduced : L.StructureType :=
+  @StructureType.of _ L N (Equiv.inducedStructure L e)
 
-/-- The induced bundled structure is isomorphic to the source structure. -/
-@[simp]
-def bundledInducedEquiv (L : Language.{u, v, z} Sorts) [L.Structure M] [∀ s, Nonempty (M s)]
-    (g : M ≃ₛ N) :
-    M ≃[L] ((Fam.MSEquiv.bundledInduced (L := L) g : StructureType.{u, v, z, w'} L) : Fam Sorts)
-    := by
-  simp only [Fam.MSEquiv.bundledInduced]
-  exact (Language.Equiv.inducedStructureEquiv (L := L) g)
+/-- A family of equivalences, as an isomorphism onto the bundled transported structure. -/
+def Equiv.bundledInducedEquiv : M ≃[L] Equiv.bundledInduced L e :=
+  Equiv.inducedStructureEquiv e
 
-end Fam.MSEquiv
+end Induced
+
+/-! ### Bundled models -/
 
 namespace Theory
 
 variable (T : L.Theory)
 
-/-- The type of bundled nonempty many-sorted models of a theory. -/
+/-- A model of `T` with nonempty sorts. -/
 structure ModelType where
-  Carrier : Fam.{w} Sorts
+  /-- The carriers. -/
+  Carrier : S → Type w
+  /-- The structure on the carriers. -/
   [struc : L.Structure Carrier]
-  [is_model : T.Model Carrier]
-  [nonempty' : ∀ {s : Sorts}, Nonempty (Carrier s)]
+  /-- The carriers form a model of `T`. -/
+  [is_model : Carrier ⊨ T]
+  /-- The sorts are nonempty. -/
+  [nonempty' : ∀ s, Nonempty (Carrier s)]
 
-attribute [instance 2000] ModelType.struc ModelType.is_model ModelType.nonempty'
+attribute [instance] ModelType.struc ModelType.is_model ModelType.nonempty'
 
 namespace ModelType
 
-attribute [coe] ModelType.Carrier
+attribute [coe] Carrier
 
-instance instCoeTC : CoeTC T.ModelType (Fam Sorts) :=
-  ⟨ModelType.Carrier⟩
+instance : CoeFun T.ModelType fun _ => S → Type w :=
+  ⟨Carrier⟩
 
-instance instStructure (M : T.ModelType) : L.Structure (M : Fam Sorts) :=
-  M.struc
-
-instance instTheoryModel (M : T.ModelType) : (M : Fam Sorts) ⊨ T :=
-  M.is_model
-
-instance instNonemptySort (M : T.ModelType) {s : Sorts} : Nonempty ((M : Fam Sorts) s) :=
-  M.nonempty'
-
-section Inhabited
-
-instance instInhabited : Inhabited ((∅ : L.Theory).ModelType) := by
-  let M : Fam Sorts := ⟨fun _ => PUnit⟩
-  letI : L.Structure M :=
-    { funMap := fun _ _ => PUnit.unit
-      RelMap := fun _ _ => False }
-  letI : ∀ s, Nonempty (M s) := fun _ => ⟨PUnit.unit⟩
-  exact ⟨(⟨M⟩ : (∅ : L.Theory).ModelType)⟩
-
-end Inhabited
-
-/-- Bundle an existing model. -/
-def of (M : Fam.{w} Sorts) [L.Structure M] [M ⊨ T] [∀ s, Nonempty (M s)] : T.ModelType :=
+/-- Bundle a model. -/
+def of (M : S → Type w) [L.Structure M] [M ⊨ T] [∀ s, Nonempty (M s)] : T.ModelType :=
   ⟨M⟩
 
 @[simp]
-theorem coe_of (M : Fam.{w} Sorts) [L.Structure M] [M ⊨ T] [∀ s, Nonempty (M s)] :
-    ((of (T := T) M : T.ModelType) : Fam Sorts) = M :=
+theorem coe_of (M : S → Type w) [L.Structure M] [M ⊨ T] [∀ s, Nonempty (M s)] :
+    ⇑(of T M) = M :=
   rfl
 
-instance of_small (M : Fam.{w} Sorts) [L.Structure M] [M ⊨ T] [∀ s, Nonempty (M s)]
-    [h : ∀ s, Small.{w'} (M s)] (s : Sorts) :
-    Small.{w'} ((((ModelType.of (T := T) M : T.ModelType) : Fam Sorts) s)) := by
-  simpa [ModelType.coe_of (T := T)] using (h s)
+/-- The empty theory has a model: one point in every sort. -/
+instance instInhabited : Inhabited (ModelType.{u, v, w, z} (∅ : L.Theory)) :=
+  let : L.Structure fun _ => PUnit.{w + 1} := ⟨fun _ _ => PUnit.unit, fun _ _ => False⟩
+  ⟨of _ fun _ => PUnit.{w + 1}⟩
 
-instance instSmallSigma (M : T.ModelType) [h : ∀ s, Small.{w'} (((M : Fam Sorts) s))] :
-    Small.{max z w'} (Σ s, ((M : Fam Sorts) s)) := by
-  letI : ∀ s, Small.{w'} (((M : Fam Sorts) s)) := h
-  letI : Small.{max z w'} Sorts := Small.mk' (Equiv.ulift.symm : Sorts ≃ ULift.{w'} Sorts)
-  letI : ∀ s, Small.{max z w'} (((M : Fam Sorts) s)) := fun s =>
-    show Small.{max z w'} (((M : Fam Sorts) s)) from small_lift (((M : Fam Sorts) s))
-  infer_instance
+variable {T}
 
-/-- Transport a bundled model across a many-sorted equivalence. -/
-def equivInduced {M : T.ModelType} {N : Fam.{w'} Sorts} (e : (M : Fam Sorts) ≃ₛ N) :
-    T.ModelType where
-  Carrier := N
-  struc := Language.Equiv.inducedStructure (L := L) e
-  is_model := by
-    letI : L.Structure N := Language.Equiv.inducedStructure (L := L) e
-    letI : (M : Fam Sorts) ⊨ T := M.is_model
-    exact StrongHomClass.theory_model
-      (g := Language.Equiv.inducedStructureEquiv (L := L) e) (T := T)
-  nonempty' := by
-    intro s
-    rcases (M.nonempty' (s := s)) with ⟨m⟩
-    exact ⟨e s m⟩
+instance of_small (M : S → Type w) [L.Structure M] [M ⊨ T] [∀ s, Nonempty (M s)]
+    [h : ∀ s, Small.{w'} (M s)] (s : S) : Small.{w'} (of T M s) :=
+  h s
 
-/-- Shrink each sort of a model into a target universe. -/
-noncomputable def shrink (M : T.ModelType)
-    (hsmall : ∀ s, Small.{w'} (((M : Fam Sorts) s))) : T.ModelType := by
-  let N : Fam.{w'} Sorts := ⟨fun s => Shrink (((M : Fam Sorts) s))⟩
-  let e : (M : Fam Sorts) ≃ₛ N := by
-    refine Fam.MSEquiv.fromEquivs ?_
-    intro s
-    letI : Small.{w'} (((M : Fam Sorts) s)) := hsmall s
-    exact equivShrink (((M : Fam Sorts) s))
-  exact equivInduced (T := T) e
+/-- A model transported along a family of equivalences. -/
+def equivInduced {M : T.ModelType} {N : S → Type w'} (e : ∀ s, M s ≃ N s) :
+    ModelType.{u, v, w', z} T :=
+  let := Equiv.inducedStructure L e
+  { Carrier := N
+    is_model := (Equiv.inducedStructureEquiv e).theory_model
+    nonempty' := fun s => (M.nonempty' s).map (e s) }
 
-/-- Lift each sort of a model by `ULift`. -/
-def ulift (M : T.ModelType) : T.ModelType := by
-  let N : Fam.{max w w'} Sorts := ⟨fun s => ULift.{w'} (((M : Fam Sorts) s))⟩
-  let e : (M : Fam Sorts) ≃ₛ N :=
-    Fam.MSEquiv.fromEquivs (fun s => Equiv.ulift.symm)
-  exact equivInduced (T := T) e
+/-- A model whose sorts are small in a universe `w'`, shrunk to `w'`. -/
+noncomputable def shrink (M : T.ModelType) [∀ s, Small.{w'} (M s)] : ModelType.{u, v, w', z} T :=
+  equivInduced fun s => equivShrink (M s)
+
+/-- A model lifted to a larger universe. -/
+def ulift (M : ModelType.{u, v, w, z} T) : ModelType.{u, v, max w w', z} T :=
+  equivInduced (M := M) fun s => (@_root_.Equiv.ulift.{w', w} (M s)).symm
 
 /-- The reduct of a model of `φ.onTheory T` is a model of `T`. -/
-def reduct {L' : Language Sorts} (φ : L →ᴸ L') (M : (φ.onTheory T).ModelType) : T.ModelType
-  where
-  Carrier := M
-  struc := φ.reduct M
-  nonempty' := M.nonempty'
-  is_model := by
-    letI : L.Structure (M : Fam Sorts) := φ.reduct M
-    exact (LHom.onTheory_model (M := (M : Fam Sorts)) φ T).1 M.is_model
+def reduct {L' : Language.{u', v'} S} (φ : L →ᴸ L') (M : (φ.onTheory T).ModelType) :
+    T.ModelType :=
+  let := φ.reduct M
+  have := LHom.isExpansionOn_reduct φ (M := M)
+  { Carrier := M
+    is_model := (LHom.onTheory_model φ T).1 M.is_model }
 
-/-- Expand a model of `T` to a model of `φ.onTheory T` by a default expansion, when `φ` is
-  injective. -/
-noncomputable def defaultExpansion {L' : Language Sorts} {φ : L →ᴸ L'} (h : φ.Injective)
+/-- A model of `T`, expanded along an injective map of languages to a model of `φ.onTheory T`. -/
+noncomputable def defaultExpansion {L' : Language.{u', v'} S} {φ : L →ᴸ L'} (h : φ.Injective)
     [∀ (σ t) (f : L'.Functions σ t),
       Decidable (f ∈ Set.range fun f : L.Functions σ t => φ.onFunction f)]
-    [∀ (σ) (r : L'.Relations σ),
-      Decidable (r ∈ Set.range fun r : L.Relations σ => φ.onRelation r)]
-    (M : T.ModelType) : (φ.onTheory T).ModelType := by
-  classical
-  letI : ∀ s, Inhabited (((M : Fam Sorts) s)) := fun s =>
-    Classical.inhabited_of_nonempty (M.nonempty' (s := s))
-  letI : L'.Structure (M : Fam Sorts) := φ.defaultExpansion M
-  letI : φ.IsExpansionOn (M : Fam Sorts) := h.isExpansionOn_default M
-  exact
-    { Carrier := M
-      struc := inferInstance
-      nonempty' := M.nonempty'
-      is_model := (LHom.onTheory_model (M := (M : Fam Sorts)) φ T).2 M.is_model }
+    [∀ (σ) (R : L'.Relations σ),
+      Decidable (R ∈ Set.range fun R : L.Relations σ => φ.onRelation R)]
+    (M : T.ModelType) [∀ s, Inhabited (M s)] : (φ.onTheory T).ModelType :=
+  let := φ.defaultExpansion M
+  have := h.isExpansionOn_default M
+  { Carrier := M
+    is_model := (LHom.onTheory_model φ T).2 M.is_model }
 
-instance leftStructure {L' : Language Sorts} {T : (L.sum L').Theory} (M : T.ModelType) :
-    L.Structure (M : Fam Sorts) :=
-  (LHom.sumInl : L →ᴸ L.sum L').reduct M
+instance leftStructure {L' : Language.{u', v'} S} {T : (L.sum L').Theory} (M : T.ModelType) :
+    L.Structure M :=
+  (LHom.sumInl L L').reduct M
 
-instance rightStructure {L' : Language Sorts} {T : (L.sum L').Theory} (M : T.ModelType) :
-    L'.Structure (M : Fam Sorts) :=
-  (LHom.sumInr : L' →ᴸ L.sum L').reduct M
+instance rightStructure {L' : Language.{u', v'} S} {T : (L.sum L').Theory} (M : T.ModelType) :
+    L'.Structure M :=
+  (LHom.sumInr L L').reduct M
 
-/-- A model of `T` is a model of any subtheory `T' ⊆ T`. -/
-def subtheoryModel (M : T.ModelType) {T' : L.Theory} (h : T' ⊆ T) : T'.ModelType where
-  Carrier := M
-  struc := M.struc
-  nonempty' := M.nonempty'
-  is_model := ⟨fun _φ hφ => Theory.realize_sentence_of_mem (T := T) (M := M) (h hφ)⟩
+/-- A model of `T` is a model of every subtheory of `T`. -/
+def subtheoryModel (M : T.ModelType) {T' : L.Theory} (h : T' ⊆ T) : T'.ModelType :=
+  { Carrier := M
+    is_model := M.is_model.mono h }
 
 instance subtheoryModel_models (M : T.ModelType) {T' : L.Theory} (h : T' ⊆ T) :
-    ((ModelType.subtheoryModel (T := T) M h : T'.ModelType) : Fam Sorts) ⊨ T' :=
-  (ModelType.subtheoryModel (T := T) M h).is_model
+    M.subtheoryModel h ⊨ T :=
+  M.is_model
 
 end ModelType
 
 variable {T}
 
-/-- Bundle a proof that `M` models `T`. -/
-def Model.bundled {M : Fam.{w} Sorts} [LM : L.Structure M] [∀ s, Nonempty (M s)] (h : M ⊨ T) :
+/-- A model, bundled. -/
+def Model.bundled {M : S → Type w} [L.Structure M] [∀ s, Nonempty (M s)] (h : M ⊨ T) :
     T.ModelType :=
-  ModelType.of (T := T) M
+  ModelType.of T M
 
 @[simp]
-theorem coe_of {M : Fam.{w} Sorts} [L.Structure M] [∀ s, Nonempty (M s)] (h : M ⊨ T) :
-    ((Theory.Model.bundled (T := T) h : T.ModelType) : Fam Sorts) = M :=
+theorem Model.coe_bundled {M : S → Type w} [L.Structure M] [∀ s, Nonempty (M s)] (h : M ⊨ T) :
+    ⇑h.bundled = M :=
   rfl
+
+/-! ### Models and realizations -/
+
+variable (T) in
+/-- **The realizations of a theory are its models in the universe of the language.** -/
+def realizationEquivModelType : FormulaSet.Realization T ≃ ModelType.{u, v, max z u v, z} T where
+  toFun r := ModelType.of T r.carrier
+  invFun M := ⟨M, PUnit.unit, fun _ hφ => realize_sentence_of_mem hφ⟩
+  left_inv := by rintro ⟨_, ⟨⟩, _⟩; rfl
+  right_inv _ := rfl
+
+/-- A theory is satisfiable exactly when it has a model in the universe of the language, which is
+Mathlib's definition. -/
+theorem isSatisfiable_iff_nonempty_modelType :
+    T.IsSatisfiable ↔ Nonempty (ModelType.{u, v, max z u v, z} T) :=
+  (realizationEquivModelType T).nonempty_congr
+
+/-- A consequence of `T` is a sentence that holds in every model of `T` in the universe of the
+language, as in Mathlib. -/
+theorem models_sentence_iff_forall_modelType {φ : L.Sentence} :
+    T ⊨ᵇ φ ↔ ∀ M : ModelType.{u, v, max z u v, z} T, M ⊨ φ :=
+  ⟨fun h M => h M PUnit.unit, fun h M _ _ _ _ => h (ModelType.of T M)⟩
 
 end Theory
 
-/-- Bundle a structure elementarily equivalent to a bundled model as a bundled model. -/
-def ElementarilyEquivalent.toModel {T : L.Theory} {M : T.ModelType} {N : Fam Sorts}
-    [L.Structure N] (h : (M : Fam Sorts) ≅[L] N) : T.ModelType where
-  Carrier := N
-  struc := inferInstance
-  nonempty' := by
-    intro s
-    letI : Nonempty ((M : Fam Sorts) s) := M.nonempty'
-    exact h.nonempty
-  is_model := by
-    letI : (M : Fam Sorts) ⊨ T := M.is_model
-    exact h.theory_model
+/-! ### Elementarily equivalent structures as models -/
 
-/-- An elementary substructure of a bundled model, bundled as a model of the same theory. -/
-def ElementarySubstructure.toModel {T : L.Theory} {M : T.ModelType}
-    (S : L.ElementarySubstructure M) : T.ModelType :=
-  S.elementarilyEquivalent.symm.toModel (T := T)
+variable {T : L.Theory}
 
-instance ElementarySubstructure.toModel.instSmall {T : L.Theory} {M : T.ModelType}
-    (S : L.ElementarySubstructure M) {s : Sorts} [h : Small.{w'} (S s)] :
-    Small.{w'} ((((S.toModel (T := T) : T.ModelType) : Fam Sorts) s)) := by
-  exact h
+/-- A structure elementarily equivalent to a model of `T`, bundled as a model of `T`. -/
+def ElementarilyEquivalent.toModel {M : T.ModelType} {N : S → Type w'} [L.Structure N]
+    (h : L.ElementarilyEquivalent M N) : Theory.ModelType.{u, v, w', z} T :=
+  { Carrier := N
+    is_model := h.theory_model
+    nonempty' := fun s => (h.nonempty_iff s).1 inferInstance }
 
-end Language
-end MSFirstOrder
+/-- An elementary substructure of a model of `T`, bundled as a model of `T`. -/
+def ElementarySubstructure.toModel {M : T.ModelType} (A : L.ElementarySubstructure M) :
+    T.ModelType :=
+  A.elementarilyEquivalent.symm.toModel
+
+instance ElementarySubstructure.toModel.instSmall {M : T.ModelType}
+    (A : L.ElementarySubstructure M) [h : ∀ s, Small.{w'} (A s)] (s : S) :
+    Small.{w'} (A.toModel s) :=
+  h s
+
+end ManySorted.Language

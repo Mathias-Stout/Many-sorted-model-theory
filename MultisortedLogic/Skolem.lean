@@ -1,570 +1,206 @@
 /-
 Copyright (c) 2026 Mathias Stout. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Mathias Stout. Based on the corresponding Mathlib file by Aaron Anderson
+Authors: Aaron Crighton, Mathias Stout
 -/
-import MultisortedLogic.ElementarySubstructures
-import MultisortedLogic.Encoding
+module
+
+public import MultisortedLogic.ElementarySubstructures
+public import MultisortedLogic.LanguageMap
 
 /-!
-# Skolem Functions and Downward Löwenheim–Skolem (Many-Sorted)
+# Skolem functions and the downward Löwenheim–Skolem theorem
 
-## Main Definitions
+## Main definitions
 
-- `MSFirstOrder.Language.skolem₁` is a language consisting of Skolem functions for another
-  language.
+* `Language.skolem₁ L`: a function symbol of arity `σ` and sort `s` for every formula in context
+  `σ ⨯ ⦃s⦄`, to be interpreted as a Skolem function for it.
+* `Substructure.elementarySkolem₁Reduct`: a substructure closed under the Skolem functions, as an
+  elementary `L`-substructure.
 
-## Main Results
+## Main results
 
-- `MSFirstOrder.Language.exists_elementarySubstructure_card_eq` is the Downward Löwenheim–Skolem
-  theorem: If `s` is a family of sets in an `L`-structure `M` and `κ` an infinite cardinal such that
-  `max (#(Σ s, A s), L.card) ≤ κ` and `κ ≤ #(Σ s, M s)`, then `M` has an elementary substructure
-  containing `A` of cardinality `κ` in each sort.
+* `exists_small_elementarySubstructure`: every structure with nonempty sorts has an elementary
+  substructure that is small in the universe of the language.
+* `exists_elementarySubstructure_card_eq`: **the downward Löwenheim–Skolem theorem**, with the
+  size of a structure measured by `Σ s, M s`.
 
-## TODO
+## References
 
-- Use `skolem₁` recursively to construct an actual Skolemization of a language.
+This file was originally based on `Mathlib/ModelTheory/Skolem.lean`, by Aaron Anderson.
 -/
 
-universe u u' v z w w'
+@[expose] public section
 
-namespace MSFirstOrder
+universe u v w w' z
 
-namespace Language
+namespace ManySorted.Language
 
-open Structure Cardinal Signature Interpret
+open Arity Structure Cardinal
 
-variable {Sorts : Type z}
-variable (L : Language.{u, v, z} Sorts) {M : Fam.{w} Sorts}
-  [L.Structure M] [∀ s, Nonempty (M s)]
+variable {S : Type z} (L : Language.{u, v} S) {M : S → Type w} [L.Structure M]
 
-/-- A language consisting of Skolem functions for another language.
-Called `skolem₁` because it is the first step in building a Skolemization of a language.
-For each bounded formula `φ` with bound variables of signature `σ.prod (.of s)`, we add
-a function symbol of arity `σ` returning sort `s`, which will be interpreted as a Skolem
-function witnessing the existential quantifier over sort `s`. -/
+/-- A language with a Skolem function for every formula of `L`: a function symbol of arity `σ` and
+sort `s` for every formula in context `σ ⨯ ⦃s⦄`. -/
 @[simps]
-def skolem₁ : Language Sorts :=
-  ⟨fun σ s => L.BoundedFormula Fam.EmptyFam (σ.prod (.of s)), fun _ => Empty⟩
+def skolem₁ : Language.{max z u v, 0} S where
+  Functions σ s := L.Formula (σ ⨯ ⦃s⦄)
+  Relations _ := Empty
 
 variable {L}
 
-/-- The structure assigning each function symbol of `L.skolem₁` to a Skolem function generated with
-choice. -/
-noncomputable instance skolem₁Structure : L.skolem₁.Structure M :=
-  ⟨fun {_σ _s} φ x => Classical.epsilon fun a => φ.Realize default ⟨x, a⟩,
-   fun {_} r => Empty.elim r⟩
+/-- The Skolem functions, chosen with `Classical.epsilon`. -/
+noncomputable instance skolem₁Structure [∀ s, Nonempty (M s)] : L.skolem₁.Structure M where
+  funMap {σ s} φ x := Classical.epsilon fun a : M s => φ.Realize ((x, a) : M [^] (σ ⨯ ⦃s⦄))
+  RelMap r _ := r.elim
 
-/-! ## Cardinality Lemmas for Skolem Languages
+/-! ### The number of Skolem functions -/
 
-The cardinality bounds for the Skolem language require careful universe management.
-The key facts are:
-- `L.skolem₁.Functions σ s = L.BoundedFormula Fam.EmptyFam (σ.prod (.of s))`
-- The cardinality of all bounded formulas is bounded by `max ℵ₀ L.card` (from Encoding.lean)
-- Therefore the combined language `L.sum L.skolem₁` has bounded function symbols
+/-- The symbols of `L` with its Skolem functions, as symbols of `L` or formulas of `L`. -/
+def symbolsSumSkolem₁Encode : (L.sum L.skolem₁).Symbols → L.Symbols ⊕ Σ σ, L.Formula σ
+  | .inl ⟨σ, t, .inl f⟩ => .inl (.inl ⟨σ, t, f⟩)
+  | .inl ⟨σ, t, .inr φ⟩ => .inr ⟨σ ⨯ ⦃t⦄, φ⟩
+  | .inr ⟨σ, .inl R⟩ => .inl (.inr ⟨σ, R⟩)
+  | .inr ⟨_, .inr r⟩ => r.elim
 
-These bounds are used in the proof of exists_elementarySubstructure_card_eq via
-lift_card_closure_le from SubstructureMS.lean.
--/
+theorem symbolsSumSkolem₁Encode_injective :
+    Function.Injective (symbolsSumSkolem₁Encode (L := L)) := by
+  rintro (⟨σ, t, f | φ⟩ | ⟨σ, R | r⟩) (⟨σ', t', f' | φ'⟩ | ⟨σ', R' | r'⟩) h
+  all_goals first | exact (r : Empty).elim | exact (r' : Empty).elim | (cases h; rfl) | cases h
 
-/-- The sigma of all Skolem function symbols is bounded by the sigma of all bounded formulas. -/
-theorem card_skolem₁_functions_le :
-    #(Σ s σ, L.skolem₁.Functions σ s) ≤ #(Σ σ, L.BoundedFormula Fam.EmptyFam σ) := by
-  apply Cardinal.mk_le_of_injective
-    (f := fun ⟨s, σ, φ⟩ => ⟨σ.prod (.of s), φ⟩)
-  intro ⟨s₁, σ₁, φ₁⟩ ⟨s₂, σ₂, φ₂⟩ h
-  -- From σ₁.prod (.of s₁) = σ₂.prod (.of s₂), we get σ₁ = σ₂ and s₁ = s₂
-  injection h with hprod hφ
-  injection hprod with h1 h2
-  injection h2 with h3
-  subst h1
-  subst h3
-  cases hφ
-  rfl
+variable (L) in
+/-- **The number of symbols with Skolem functions** is at most `max ℵ₀ (#S + L.card)`. -/
+theorem card_sum_skolem₁_le : (L.sum L.skolem₁).card ≤ max ℵ₀ (lift.{max u v} #S + L.card) := by
+  refine (mk_le_of_injective symbolsSumSkolem₁Encode_injective).trans ?_
+  rw [mk_sum, lift_id, lift_id]
+  exact add_le_of_le (le_max_left _ _) (le_max_of_le_right (self_le_add_left _ _))
+    (Formula.card_sigma_le L)
 
-lemma add_le_of_le_of_le_of_infinite
-  {X Y Z : Cardinal}
-  (hXZ : X ≤ Z)
-  (hYZ : Y ≤ Z)
-  (hZinf : (ℵ₀ : Cardinal) ≤ Z) :
-  X + Y ≤ Z :=
-by
-  by_cases h: ℵ₀ ≤ X
-  case pos =>
-    -- reduce addition to max using infinitude of Z
-    calc
-      X + Y = max X Y := by
-        simpa [max_comm] using
-          (Cardinal.add_eq_max (a := X) (b := Y) h)
-      _ ≤ Z := max_le hXZ hYZ
-  case neg =>
-    by_cases h': ℵ₀ ≤ Y
-    case pos =>
-      simp_all only [not_le]
-      rw[add_comm, add_eq_max h']
-      simp_all
-    case neg =>
-      apply le_trans (b:= ℵ₀)
-      · simp_all only [not_le]
-        have h := Cardinal.add_lt_aleph0  h' h
-        simp_all only [add_le_aleph0, le_of_lt, and_self]
-      · exact hZinf
-
-def f : (s : Sorts) → (σ : Signature Sorts) → (L.Functions σ s → L.BoundedFormula Fam.EmptyFam σ) :=
-    fun _ σ f =>
-      let v : L.Term (Fam.EmptyFam ⊕ₛ σ.IdxFam) σ := (Term.varTerm (L:= L) σ).bind
-        ⟨fun s v => Term.var s (Sum.inr v)⟩
-      BoundedFormula.equal (Term.func f v) (Term.func f v)
-
-def F (s : Sorts) (σ : Signature Sorts)
-    (g : L.Functions σ s) : L.BoundedFormula Fam.EmptyFam σ :=
-by
-  classical
-  let v : L.Term (Fam.EmptyFam ⊕ₛ σ.IdxFam) σ :=
-    (Term.varTerm (L := L) σ).bind ⟨fun s v => Term.var s (Sum.inr v)⟩
-  exact BoundedFormula.equal (Term.func g v) (Term.func g v)
-
-lemma hinj : ∀ s σ, Function.Injective (fun g : L.Functions σ s => F s σ g) := by
-  intro s σ g g' h
-  simp_all only [F, BoundedFormula.equal.injEq, heq_eq_eq, Term.func.injEq, and_true, true_and,
-    and_self]
-
-def bundledInj
-  {Sorts : Type z} {L : Language Sorts} :
-  ((i₁ : Signature Sorts) × (i : Sorts) ×  L.Functions i₁ i) ↪
-    (Σ i : Signature Sorts, L.BoundedFormula Fam.EmptyFam i) :=
-by
-  classical
-  refine
-  { toFun := ?_
-    inj'  := ?_ }
-  · intro x
-    -- unpack ULift + the triple
-    rcases x with ⟨s, σ, g⟩
-    exact ⟨s ,  F σ s g⟩
-  · intro x y h
-    rcases x with ⟨s, σ, g⟩
-    rcases y with ⟨s', σ', g'⟩
-    -- equality in Σ gives: σ = σ' and HEq of the payloads
-    rcases (Sigma.mk.inj_iff.mp h) with ⟨hσ, hHEq⟩
-    subst hσ
-    cases hHEq
-    rfl
-
-def inj_prodSingleton
-  {Sorts : Type z} {L : Language Sorts} :
-  ((i₁ : Signature Sorts) × (i : Sorts) × L.BoundedFormula Fam.EmptyFam (i₁ ⨯ ⦃i⦄)) ↪
-    (Σ i : Signature Sorts, L.BoundedFormula Fam.EmptyFam i) :=
-by
-  classical
-  refine
-  { toFun := ?_
-    inj'  := ?_ }
-  · rintro ⟨σ, s, φ⟩
-    exact ⟨σ ⨯ ⦃s⦄, φ⟩
-  · rintro ⟨s, σ, φ⟩ ⟨s', σ', φ'⟩ h
-    -- equality in Σ gives index equality + HEq of payloads
-    rcases (Sigma.mk.inj_iff.mp h) with ⟨hidx, hφ⟩
-    -- from hidx : (σ ⨯ ⦃s⦄) = (σ' ⨯ ⦃s'⦄), get σ=σ' and s=s'
-    -- (this step depends on your Signature API; often `cases hidx` is enough)
-    cases hidx
-    -- now hφ : HEq φ φ' but indices are definitional equal, so it’s just Eq
-    cases hφ
-    rfl
-
-def nat_formula_inj : ℕ → L.BoundedFormula Fam.EmptyFam .nil
-  | 0 => .falsum
-  | n + 1 => (nat_formula_inj n).imp .falsum
-
-lemma nat_formula_inj_size (n : ℕ) :
-  (nat_formula_inj (L:= L) n).size = 2*n + 1:= by
-  induction n
-  case zero => simp only [nat_formula_inj, BoundedFormula.size]
-  case succ n ih =>
-    simp only [nat_formula_inj, BoundedFormula.size, ih]
-    linarith
-
-lemma nat_formula_inj_inj : Function.Injective (nat_formula_inj (L:=L)) := by
-  intro a b h
-  apply congrArg (BoundedFormula.size (L:= L)) at h
-  simp only [nat_formula_inj_size, Nat.add_right_cancel_iff, mul_eq_mul_left_iff,
-    OfNat.ofNat_ne_zero, or_false] at h
-  exact h
-
-theorem card_functions_sum_skolem₁ :
-    #( (η : Signature Sorts) × (s : Sorts)  × (L.sum L.skolem₁).Functions η s) ≤
-    #(Σ σ, L.BoundedFormula Fam.EmptyFam σ) := by
-  simp only [card_functions_sum, skolem₁_Functions, mk_sigma, sum_add_distrib']
-  apply add_le_of_le_of_le_of_infinite
-  · simp only [←lift_sum]
-    simp only [←mk_sigma]
-    apply mk_le_of_injective ( f:= bundledInj ∘ ULift.down )
-    simp only [EmbeddingLike.comp_injective]
-    intro x y
-    simp only [ULift.down_inj, imp_self]
-  · simp only [←lift_sum]
-    simp only [←mk_sigma]
-    apply mk_le_of_injective (f:= inj_prodSingleton  ∘ ULift.down)
-    simp only [EmbeddingLike.comp_injective]
-    intro x y
-    simp only [ULift.down_inj, imp_self]
-  · classical
-    let α := (Σ i : Signature Sorts, L.BoundedFormula Fam.EmptyFam i)
-    let e : ℕ → α :=
-      fun i  => ⟨.nil, nat_formula_inj i⟩
-    -- Nat infinite + injection into α gives α infinite
-    haveI : Infinite α := by
-      apply Infinite.of_injective e
-      intro i j h
-      simp_all only [e]
-      simp_all only [Sigma.mk.injEq, heq_eq_eq, true_and, α]
-      exact nat_formula_inj_inj h
-    -- now the real lemma:
-    have hα : (Cardinal.aleph0 : Cardinal) ≤ #α :=
-      Cardinal.aleph0_le_mk α
-    -- convert #(Σ i, ...) to the sum of cardinals
-    simpa [α, Cardinal.mk_sigma] using hα
-
-theorem card_functions_sum_skolem₁_le :
-    #( (η : Signature Sorts) × (s : Sorts)  × (L.sum L.skolem₁).Functions η s) ≤
-    max ℵ₀ (lift #Sorts + L.card) := by
-  apply le_trans (b:= #(Σ σ, L.BoundedFormula Fam.EmptyFam σ))
-  · exact card_functions_sum_skolem₁
-  · refine _root_.trans BoundedFormula.card_le' (lift_le.{max u v}.1 ?_)
-    apply  (le_trans (lift_le.mpr BoundedFormula.BFCode_card))
-    simp_all only [mk_sigma, mk_eq_zero, sum_const, lift_uzero, lift_zero, mul_zero, add_zero,
-      lift_max, lift_aleph0, lift_add, lift_lift, ge_iff_le, le_refl]
-
-/-- Bounded formulas with empty free variables are countable when the language is countable. -/
-instance instCountableBoundedFormulaEmpty
-    [Countable Sorts]
-    [Countable (Σ η s, L.Functions η s)]
-    [Countable (Σ σ, L.Relations σ)] :
-    Countable (Σ σ, L.BoundedFormula Fam.EmptyFam σ) := by
-  haveI : Countable (Σ s : Sorts, (Fam.EmptyFam : Sorts → Type _) s) := by
-    have : IsEmpty (Σ s : Sorts, (Fam.EmptyFam : Sorts → Type _) s) := ⟨fun ⟨_, x⟩ => x.elim⟩
-    infer_instance
-  exact BoundedFormula.countable
-
-/-- The Skolem function symbols are countable when the language is countable. -/
-instance instCountableSkolem₁Functions
-    [Countable Sorts]
-    [Countable (Σ η s, L.Functions η s)]
-    [Countable (Σ σ, L.Relations σ)] :
-    Countable (Σ σ s, L.skolem₁.Functions σ s) := by
-  have hinj : Function.Injective
-      (fun (x : Σ σ s, L.skolem₁.Functions σ s) =>
-        (⟨x.1.prod (.of x.2.1), x.2.2⟩ : Σ σ, L.BoundedFormula Fam.EmptyFam σ)) := by
-    intro ⟨s₁, σ₁, φ₁⟩ ⟨s₂, σ₂, φ₂⟩ h
-    injection h with hprod hφ
-    injection hprod with h1 h2
-    injection h2 with h3
-    subst h1
-    subst h3
-    cases hφ
-    rfl
-  exact Function.Injective.countable hinj
-
-/-- The sum language `L.sum L.skolem₁` has countable function symbols
-    when the original language has countable function symbols and relations. -/
-instance instCountableSumSkolem₁Functions
-    [Countable Sorts]
-    [Countable (Σ η s, L.Functions η s)]
-    [Countable (Σ σ, L.Relations σ)] :
-    Countable (Σ σ s, (L.sum L.skolem₁).Functions σ s) := by
-  -- (L.sum L.skolem₁).Functions σ s = L.Functions σ s ⊕ L.skolem₁.Functions σ s
-  -- The sigma over this sum is equivalent to the sum of the sigmas
-  haveI h1 : Countable (Σ σ s, L.Functions σ s) := inferInstance
-  haveI h2 : Countable (Σ σ s, L.skolem₁.Functions σ s) := instCountableSkolem₁Functions
-  exact Countable.of_equiv
-    ((Σ σ s, L.Functions σ s) ⊕ (Σ σ s, L.skolem₁.Functions σ s))
-    { toFun := fun x => match x with
-        | Sum.inl ⟨s, σ, f⟩ => ⟨s, σ, Sum.inl f⟩
-        | Sum.inr ⟨s, σ, f⟩ => ⟨s, σ, Sum.inr f⟩
-      invFun := fun ⟨s, σ, f⟩ => match f with
-        | Sum.inl f => Sum.inl ⟨s, σ, f⟩
-        | Sum.inr f => Sum.inr ⟨s, σ, f⟩
-      left_inv := by intro x; cases x <;> rfl
-      right_inv := by intro ⟨s, σ, f⟩; cases f <;> rfl }
+/-! ### Substructures closed under Skolem functions are elementary -/
 
 namespace Substructure
 
-theorem skolem₁_reduct_isElementary (S : (L.sum L.skolem₁).Substructure M) :
-    (LHom.sumInl.substructureReduct S).IsElementary := by
-  -- The reduct has the same underlying set as S
-  let S' := LHom.sumInl.substructureReduct S
-  apply S'.isElementary_of_exists
-  intro s σ φ xs a h
-  -- xs : S'[^]σ where S'.Subtype = S.Subtype (same underlying sets, same coercion)
-  -- The formula φ is simultaneously a Skolem function symbol in L.skolem₁
-  let φ' : (L.sum L.skolem₁).Functions σ s := LHom.sumInr.onFunction φ
-  -- Coerce xs to get M-valued tuple using composition with Subtype.val
-  let coe_xs : M[^]σ := S.subtype <$>ₛ xs
-  -- The Skolem function applied to the coerced tuple gives a witness
-  have hmem : funMap φ' coe_xs ∈ S s := by
-    apply S.fun_mem φ' coe_xs
-    intro t i
-    exact Set.mem_of_eq_of_mem
-      (congrFun (DFunLike.congr_fun (get_map xs S.subtype) t) i) (xs.get t i).2
-  refine ⟨⟨funMap φ' coe_xs, hmem⟩, ?_⟩
-  /- The Skolem function chooses a witness via epsilon
-    By definition of skolem₁Structure, funMap (Sum.inr φ) x =
-    epsilon (fun a => φ.Realize default ⟨x, a⟩)
-    Since ⟨a, h⟩ witnesses the existential, epsilon_spec gives us the result -/
-  have hrealize : φ.Realize default (coe_xs, funMap (L := L.sum L.skolem₁) φ' coe_xs) := by
-    -- By definition φ' = Sum.inr φ and funMap (Sum.inr φ) = epsilon ...
-    change φ.Realize default (coe_xs, funMap (L := L.sum L.skolem₁) (Sum.inr φ) coe_xs)
-    have heq : funMap (L := L.sum L.skolem₁) (Sum.inr φ) coe_xs =
-        Classical.epsilon fun a => φ.Realize default (coe_xs, a) := rfl
-    rw [heq]
-    -- h has type: φ.Realize default (S'.subtype <$>ₛ xs, a)
-    -- S'.subtype <$>ₛ xs = coe_xs since S'.subtype s x = x.1
-    have hcoe : S'.subtype <$>ₛ xs = coe_xs := rfl
-    have h' : (fun b => φ.Realize default (coe_xs, b)) a := by rw [← hcoe]; exact h
-    have hex : ∃ b, φ.Realize default (coe_xs, b) := ⟨a, h'⟩
-    exact Classical.epsilon_spec hex
-  exact hrealize
+variable [∀ s, Nonempty (M s)]
 
-/-- Any `L.sum L.skolem₁`-substructure is an elementary `L`-substructure. -/
-noncomputable def elementarySkolem₁Reduct (S : (L.sum L.skolem₁).Substructure M) :
+/-- An `L`-substructure from a substructure for `L` with its Skolem functions. -/
+noncomputable def skolem₁Reduct (A : (L.sum L.skolem₁).Substructure M) : L.Substructure M where
+  carrier := A
+  fun_mem f := A.fun_mem (Sum.inl f)
+
+@[simp]
+theorem coe_skolem₁Reduct (A : (L.sum L.skolem₁).Substructure M) : ⇑A.skolem₁Reduct = ⇑A :=
+  rfl
+
+/-- A substructure closed under the Skolem functions is elementary, by the Tarski–Vaught test:
+the Skolem function of a formula gives a witness in the substructure. -/
+theorem skolem₁Reduct_isElementary (A : (L.sum L.skolem₁).Substructure M) :
+    A.skolem₁Reduct.IsElementary := by
+  refine isElementary_of_exists _ fun {σ s} φ x b hb => ?_
+  let y : M [^] σ := x.map fun _ a => a.1
+  refine ⟨⟨funMap (L := L.sum L.skolem₁) (Sum.inr φ) y,
+    A.fun_mem (Sum.inr φ) y fun t i => ?_⟩, Classical.epsilon_spec (p := fun a : M s =>
+      φ.Realize ((y, a) : M [^] (σ ⨯ ⦃s⦄))) ⟨b, hb⟩⟩
+  simp only [y, Interpret.get_map]
+  exact (x.get t i).2
+
+/-- A substructure closed under the Skolem functions, as an elementary `L`-substructure. -/
+noncomputable def elementarySkolem₁Reduct (A : (L.sum L.skolem₁).Substructure M) :
     L.ElementarySubstructure M :=
-  ⟨LHom.sumInl.substructureReduct S, S.skolem₁_reduct_isElementary⟩
+  ⟨A.skolem₁Reduct, A.skolem₁Reduct_isElementary⟩
 
-theorem coeSort_elementarySkolem₁Reduct (S : (L.sum L.skolem₁).Substructure M) :
-    (S.elementarySkolem₁Reduct : DepSet M) = S := by
+@[simp]
+theorem coe_elementarySkolem₁Reduct (A : (L.sum L.skolem₁).Substructure M) :
+    ⇑A.elementarySkolem₁Reduct = ⇑A :=
   rfl
 
 end Substructure
 
-open Substructure
+/-! ### Small elementary substructures -/
 
-variable (L) (M)
+variable (L) in
+/-- **A small elementary substructure**: a structure with nonempty sorts has an elementary
+substructure each of whose sorts is small in the universe of the language, the substructure
+generated by nothing under the Skolem functions. -/
+theorem exists_small_elementarySubstructure [∀ s, Nonempty (M s)] :
+    ∃ A : L.ElementarySubstructure M, ∀ s, Small.{max z u v} (A s) := by
+  refine ⟨(Substructure.closure (L.sum L.skolem₁) ⊥).elementarySkolem₁Reduct, fun s => ?_⟩
+  have hX : IsEmpty (Σ s, ↥((⊥ : ∀ s, Set (M s)) s)) := ⟨fun x => x.2.2⟩
+  let f : Substructure.closure (L.sum L.skolem₁) (⊥ : ∀ s, Set (M s)) s →
+      Arity PEmpty.{max z u v + 1} × Arity (L.sum L.skolem₁).Label := fun x =>
+    let e := Substructure.closureEncode (L.sum L.skolem₁) ⊥ ⟨s, x⟩
+    (e.1.map isEmptyElim, e.2)
+  have hf : Function.Injective f := by
+    intro x y h
+    have h₁ := congrArg Prod.fst h
+    have h₂ := congrArg Prod.snd h
+    have h' := Substructure.closureEncode_injective
+      (Prod.ext (Arity.map_injective (fun a => isEmptyElim a) h₁) h₂)
+    exact eq_of_heq (Sigma.mk.inj_iff.1 h').2
+  exact small_of_injective hf
 
-/-- The elementary substructure obtained from the bottom Skolem substructure is small.
-    Note: The universe level depends on the combined language's universe levels. -/
-instance Substructure.elementarySkolem₁Reduct.instSmall (s : Sorts) :
-    Small.{max (max u v) z} ((⊥ : (L.sum L.skolem₁).Substructure M).elementarySkolem₁Reduct s) := by
-  rw [coeSort_elementarySkolem₁Reduct]
-  exact Substructure.small_bot s
+/-! ### The downward Löwenheim–Skolem theorem -/
 
-/-- There exists an elementary substructure that is small in each sort. -/
-theorem exists_small_elementarySubstructure :
-    ∃ S : L.ElementarySubstructure M, ∀ s, Small.{max (max u v) z} (S s) :=
-  ⟨Substructure.elementarySkolem₁Reduct ⊥, fun _ => inferInstance⟩
-
-variable {M}
-open Fam Signature Substructure
-/-- The **Downward Löwenheim–Skolem theorem** (many-sorted version):
-  If `A` is a family of sets in an `L`-structure `M` and `κ` an infinite cardinal such that
-  `max (#(Σ s, A s), L.card) ≤ κ` and `κ ≤ #(Σ s, M s)`, then `M` has an elementary substructure
-  containing `A` of cardinality `κ` (in each sort, up to lifts).
-
-  Note: The precise universe constraints differ from the single-sorted case due to the
-  additional sort universe `z`. The statement below is a placeholder that needs careful
-  universe management to be fully correct. -/
-theorem exists_elementarySubstructure_card_eq
-    (A : DepSet M) (κ : Cardinal.{w'}) (h1 : ℵ₀ ≤ κ)
+variable (L) in
+/-- **The downward Löwenheim–Skolem theorem**: if `A` is a family of sets in an `L`-structure `M`
+with nonempty sorts, and `κ` an infinite cardinal at least `#(Σ s, A s)`, `#S` and `L.card` and at
+most `#(Σ s, M s)`, then `M` has an elementary substructure containing `A` of size `κ`, the size
+being measured by the union of the sorts. -/
+theorem exists_elementarySubstructure_card_eq [∀ s, Nonempty (M s)] (A : ∀ s, Set (M s))
+    (κ : Cardinal.{w'}) (h1 : ℵ₀ ≤ κ)
     (h2 : lift.{w'} #(Σ s, A s) ≤ lift.{max z w} κ)
-    (h3 : lift #Sorts + lift.{w'} L.card ≤ lift.{max u v z} κ)
-    (h4 : lift.{max w z} κ ≤ lift.{w'} #(Σ s, M s)) :
-    ∃ S : L.ElementarySubstructure M, (∀ s, A s ⊆ (S : L.Substructure M) s) ∧
-      lift.{w'} #(Σ s, (S : L.Substructure M) s) = lift.{max z w} κ := by
-  have hk := h1
-  --have : ∀ s : Sorts, ∃ A' : Set (M s),
-  obtain ⟨A'', hA''⟩ := Cardinal.le_mk_iff_exists_set.1 h4
-  --A'' has type `Set (ULift.{max w' z, max w z} ((s : Sorts) × M s))`
-  --We need to convert it to an appropriate lifted DepSet
-  let A' : (DepSet M) := DepSet.mk (fun s => ({a | ⟨s, a⟩ ∈ A''} : Set (M s)))
-  have hA' : lift.{w'} #(Σ s, A' s) = lift.{max w z} κ := by
-    rw[←hA'']
-    --A bijection between `Sigma A'` and `A''`
-    let e0 : ((s : Sorts) × ↑(A'.carrier s)) ≃ (↑A'') :=
-    ⟨ fun x => by
-        rcases x with ⟨s, a, ha⟩
-        simp only [Set.mem_setOf_eq, A'] at ha
-        exact ⟨_, ha⟩
-      ,
-      fun x => by
-        rcases x with ⟨⟨s,a⟩, ha⟩
-        simp only [Set.coe_setOf, A']
-        exact ⟨s, ⟨a, ha⟩⟩
-      ,
-      (by intro x; simp only [Subtype.coe_eta, Sigma.eta, id_eq]),
-      (by intro x; simp only [id_eq, Sigma.eta])
-     ⟩
-    classical
-    have h :
-        #(ULift.{w', max w z} ((s : Sorts) × ↑(A'.carrier s))) = #↑A'' := by
-      -- `Equiv.ulift` is the equivalence `ULift T ≃ T`
-      exact Cardinal.mk_congr (Equiv.ulift.trans e0)
-    simpa using h
-  rw [← aleph0_le_lift.{_, max w z}] at h1
-  rw [← hA'] at h1 h2 ⊢
-  --Obtain our structure:
-  let S := elementarySkolem₁Reduct
-                (Substructure.closure
-                      (L.sum L.skolem₁)
-                      (A ⊔ A')
-                )
-  use S
-  have h_sub : A ⊆ (S : L.Substructure M) := by
-    intro xs h
-    unfold S Substructure.closure elementarySkolem₁Reduct
-    simp_all only [ge_iff_le, mk_sigma, lift_sum, Set.coe_setOf, DepSet.sup_eq_union,
-      DepSet.union_subset_iff, LHom.coe_substructureReduct, aleph0_le_lift, A']
-    obtain ⟨s, x⟩ := xs
-    simp_all only [DepSet.mem_sigma, Substructure.sInf_apply, Set.mem_setOf_eq,
-      DepSetLike.carrier_toDepSet, Set.mem_iInter, and_imp]
-    intro X hi hi'
-    change x ∈ X s
-    apply DepSet.subset_intro_mem_eq.mp hi
-    exact h
-  have hA'_inf:  ℵ₀ ≤ #((s : Sorts) × ↑(A'.carrier s)) := by
-                  rw[←lift_le.{w'}]
-                  apply le_trans (b:= lift.{max w z} κ)
-                  · simp only [lift_aleph0, ge_iff_le, aleph0_le_lift]
-                    simp_all only [mk_sigma, lift_sum, Set.coe_setOf, ge_iff_le,  A', S]
-                  · simp_all only [mk_sigma, lift_sum, Set.coe_setOf, ge_iff_le, le_refl, A', S]
-  have h_le:  #((s : Sorts) × ↑(A.carrier s)) ≤ #((s : Sorts) × ↑(A'.carrier s)) := by
-    rw[←lift_le.{w'}]
-    exact h2
-  have hA_plus_A' : #((s : Sorts) × ↑(A'.carrier s)) + #((s : Sorts) × ↑(A.carrier s)) =
-            #((s : Sorts) × ↑(A'.carrier s))
-  := by
-      rw[Cardinal.add_eq_max (a:= #((s : Sorts) × ↑(A'.carrier s)))
-                                  (b:= #((s : Sorts) × ↑(A.carrier s)))
-                (by
-                rw[←lift_le.{w'}]
-                simp only [lift_aleph0, mk_sigma, lift_sum, ge_iff_le]
-                simp at hA'_inf
-                simp_all only [mk_sigma, lift_sum, Set.coe_setOf, ge_iff_le, aleph0_le_lift, A', S])
-      ]
-      simpa using h_le
-  constructor
-  --Goal: `∀ (s : Sorts), A.carrier s ⊆ (↑↑S).carrier s`
-  · rw[←DepSet.subset_intro_mem_eq]; exact h_sub
-  --Goal : `lift.{w'} #(Σ s, (S : L.Substructure M).Subtype s) = lift.{max z w} κ`
-  let h := lift_card_closure_le (L := L.sum L.skolem₁) (A := A ⊔ A')
-  · apply le_antisymm
-    · apply lift_le.{w', max w z}.2
-      apply lift_le.{max u (max u v) z}.1
-      have h5 : max ℵ₀
-               (lift.{max u (max u v) z, max w z} #((s : Sorts) ×
-                ↑(max A.carrier (fun s ↦ A'.carrier s) s)) +
-                lift.{w, max (max u (max u v) z) z}
-                #( (η : Signature Sorts) × (s : Sorts)  × (L.sum L.skolem₁).Functions η s))
-              ≤ lift.{max u (max u v) z} #((s : Sorts) × ↑(A'.carrier s)) := by
-          rw [max_le_iff, aleph0_le_lift, ← aleph0_le_lift.{_, w'}, add_eq_max, max_le_iff, lift_le]
-          constructor
-          · simp_all only [mk_sigma, lift_sum, Set.coe_setOf, ge_iff_le, aleph0_le_lift, A', S]
-          · have hun: #((s : Sorts) × ↑(max A.carrier (fun s ↦ A'.carrier s) s))
-                      = #(Σ s, A' s) := by
-                apply le_antisymm
-                · simp only [Pi.sup_apply, Set.sup_eq_union]
-                  have hpoint : ∀ i, #↑(A.carrier i ∪ A'.carrier i)
-                    ≤ #↑(A.carrier i) + #↑(A'.carrier i) := by
-                    intro i
-                    simpa only [Cardinal.mk_set] using
-                      (Cardinal.mk_union_le (A.carrier i) (A'.carrier i))
-                  have hsum : (Cardinal.sum fun i ↦ #↑(A.carrier i ∪ A'.carrier i))
-                    ≤ Cardinal.sum fun i ↦ (#↑(A.carrier i) + #↑(A'.carrier i)) := by
-                    exact Cardinal.sum_le_sum _ _ hpoint
-                    -- finish by distributing sum over addition
-                  apply le_trans (b := #((s : Sorts) × ↑(A.carrier s)) +
-                    #((s : Sorts) × ↑(A'.carrier s)))
-                  · simpa only [mk_sigma, sum_add_distrib'] using hsum
-                  · rw[add_comm, hA_plus_A']
-                · simp only [Pi.sup_apply, Set.sup_eq_union, mk_sigma]
-                  apply sum_le_sum;
-                  intro i
-                  apply mk_le_mk_of_subset
-                  simp only [Set.subset_union_right]
-            constructor
-            · apply le_trans (b:= #((s : Sorts) × ↑(A.carrier s)) +
-                #((s : Sorts) × ↑(A'.carrier s)))
-              · simp only [Pi.sup_apply, Set.sup_eq_union, mk_sigma]
-                have hpoint : ∀ i, #↑(A.carrier i ∪ A'.carrier i)
-                  ≤ #↑(A.carrier i) + #↑(A'.carrier i) := by
-                  intro i
-                  simpa only [Cardinal.mk_set] using
-                    (Cardinal.mk_union_le (A.carrier i) (A'.carrier i))
-                simp only [← Cardinal.sum_add_distrib]
-                exact Cardinal.sum_le_sum _ _ hpoint
-              · rw[add_comm, hA_plus_A']
-            · rw[←lift_le.{max w' (max (max u v) w) z}]
-              have : lift.{max w' (max (max u v) w) z, max (max (max u v) w) z}
-                     (lift.{max u (max u v) z, max w z} #((s : Sorts) × ↑(A'.carrier s))) =
-                    lift.{max w' (max (max u v) w) z} κ := by
-                    simp only [lift_lift]
-                    rw[←lift_inj.{_, max w' (max (max u v) w) z}]
-                    simp only [lift_lift]
-                    rw[←lift_inj.{_, max w' (max (max u v) w) z}] at hA'
-                    simp only [lift_lift] at hA'
-                    exact hA'
-              rw[this]
-              apply le_trans (b:= max ℵ₀ (lift.{max w' (max (max u v) w) z} #Sorts +
-                lift.{max w' (max (max u v) w) z} L.card))
-              · rw[lift_lift]
-                rw[←lift_le.{max w' (max (max u v) w) z}, lift_max, lift_lift, lift_aleph0]
-                rw[lift_add, lift_lift, lift_lift]
-                let h:= card_functions_sum_skolem₁_le (L:= L)
-                rw[←lift_le.{max w' (max (max u v) w) z}, lift_max, lift_aleph0] at h
-                apply le_trans h
-                simp only [lift_add, lift_lift, le_refl]
-              · rw[←lift_le.{max w' (max (max u v) w) z}] at h3
-                apply max_le
-                · simp only [aleph0_le_lift, hk]
-                · simpa only [lift_add, lift_lift, ge_iff_le] using h3
-          · simp only [Pi.sup_apply, Set.sup_eq_union, mk_sigma, lift_sum, ge_iff_le]
-            apply le_trans (b:= sum fun i ↦ lift.{max (max u v) z, w} #↑(A'.carrier i))
-            · rw[←lift_le.{max (max (max u v) w) z}] at hA'_inf
-              apply le_trans (b:=lift.{max (max (max u v) w) z, max w z}
-                #((s : Sorts) × ↑(A'.carrier s)))
-              · simpa only [mk_sigma, lift_sum, lift_aleph0, ge_iff_le] using hA'_inf
-              · simp only [mk_sigma, ←lift_sum]
-                rw[←lift_le.{max (max w z) (max u v)}]
-                simp only [lift_lift]
-                simp only [lift_sum, ge_iff_le, le_refl]
-            · apply sum_le_sum;
-              intro i
-              rw[lift_le]
-              apply mk_le_mk_of_subset
-              simp only [Set.subset_union_right]
-      unfold S
-      exact h.trans h5
-    · have h_sub' : ∀ s, A' s ⊆ (S : L.Substructure M) s := by
-        intro s a ha
-        unfold S elementarySkolem₁Reduct
-        change
-          a ∈
-            (LHom.sumInl.substructureReduct
-              (Substructure.closure (L.sum L.skolem₁) (A ⊔ A'))) s
-        exact
-          (Substructure.subset_closure (L := L.sum L.skolem₁) (A := A ⊔ A') s)
-            (by
-              change a ∈ (A ⊔ A') s
-              exact Or.inr ha)
-      apply lift_le.2
-      let f: (s : Sorts) × (A' s) → (s : Sorts) × (S : L.Substructure M) s :=
-        fun ⟨s, ⟨a, ha⟩⟩ => ⟨s, ⟨a, h_sub' s ha⟩⟩
-      apply Cardinal.mk_le_of_injective (f:= f)
-      intro x y hxy
-      rcases x with ⟨x, hx⟩
-      rcases y with ⟨y, hy⟩
-      simp only [DepSetLike.carrier_toDepSet, Sigma.mk.injEq, f] at hxy
-      simp only [Sigma.mk.injEq, hxy, true_and]
-      rcases hxy with ⟨hxy, hsub⟩
-      subst hxy
-      simp_all only [mk_sigma, lift_sum, ge_iff_le, heq_eq_eq, aleph0_le_lift]
-      obtain ⟨val, property⟩ := hx
-      obtain ⟨val_1, property_1⟩ := hy
-      exact Subtype.ext (show val = val_1 from Subtype.ext_iff.mp hsub)
+    (h3 : lift.{w'} (lift.{max u v} #S + L.card) ≤ lift.{max z u v} κ)
+    (h4 : lift.{max z w} κ ≤ lift.{w'} #(Σ s, M s)) :
+    ∃ B : L.ElementarySubstructure M, A ≤ ⇑B ∧ lift.{w'} #(Σ s, B s) = lift.{max z w} κ := by
+  classical
+  -- `κ` elements of `M`
+  rw [← mk_uLift] at h4
+  obtain ⟨p, hp⟩ := le_mk_iff_exists_set.1 h4
+  let A' : ∀ s, Set (M s) := fun s => {x | ULift.up ⟨s, x⟩ ∈ p}
+  have hA' : lift.{w'} #(Σ s, A' s) = lift.{max z w} κ := by
+    rw [← hp, ← mk_uLift]
+    exact mk_congr ⟨fun x => ⟨ULift.up ⟨x.down.1, x.down.2.1⟩, x.down.2.2⟩,
+      fun y => ULift.up ⟨y.1.down.1, y.1.down.2, y.2⟩, fun _ => rfl, fun _ => rfl⟩
+  -- the substructure they generate with `A` under the Skolem functions
+  let B₀ := Substructure.closure (L.sum L.skolem₁) (A ⊔ A')
+  refine ⟨B₀.elementarySkolem₁Reduct, fun s x hx => Substructure.subset_closure (Or.inl hx), ?_⟩
+  have hA'B : lift.{w'} #(Σ s, A' s) ≤ lift.{w'} #(Σ s, B₀ s) := by
+    refine lift_le.2 (mk_le_of_injective (f := fun x =>
+      ⟨x.1, x.2.1, Substructure.subset_closure (Or.inr x.2.2)⟩) ?_)
+    rintro ⟨s, x, hx⟩ ⟨t, y, hy⟩ h
+    simp only [Sigma.mk.injEq] at h
+    obtain ⟨rfl, h⟩ := h
+    simp only [heq_eq_eq, Subtype.mk.injEq] at h
+    subst h
+    rfl
+  refine le_antisymm ?_ (hA' ▸ hA'B)
+  -- the upper bound: the size of `A ⊔ A'`, of the sorts and of the symbols, each at most `κ`
+  have hκ : ℵ₀ ≤ lift.{max z w u v} κ := by simpa using h1
+  have hX₂ : #(Σ s, (A ⊔ A') s) ≤ #(Σ s, A s) + #(Σ s, A' s) := by
+    simp only [mk_sigma, ← sum_add_distrib]
+    exact sum_le_sum _ _ fun s => mk_union_le (A s) (A' s)
+  have hX : lift.{max z u v} (lift.{w'} #(Σ s, (A ⊔ A') s)) ≤ lift.{max z w u v} κ := by
+    have hκ' : ℵ₀ ≤ lift.{max z w} κ := by simpa using h1
+    have h : lift.{w'} #(Σ s, (A ⊔ A') s) ≤ lift.{max z w} κ := by
+      refine (lift_le.2 hX₂).trans ?_
+      rw [lift_add]
+      exact add_le_of_le hκ' h2 hA'.le
+    simpa using lift_le.{max z u v}.2 h
+  have hL : lift.{max w w'} (lift.{max u v} #S + (L.sum L.skolem₁).card) ≤
+      lift.{max z w u v} κ := by
+    have hD : lift.{w'} (max ℵ₀ (lift.{max u v} #S + L.card)) ≤ lift.{max z u v} κ := by
+      rw [lift_max, lift_aleph0]
+      exact max_le (by simpa using h1) h3
+    have hC : lift.{max u v} #S + (L.sum L.skolem₁).card ≤
+        max ℵ₀ (lift.{max u v} #S + L.card) :=
+      add_le_of_le (le_max_left _ _) (le_max_of_le_right (self_le_add_right _ _))
+        (card_sum_skolem₁_le L)
+    simpa using lift_le.{w}.2 ((lift_le.{w'}.2 hC).trans hD)
+  have hcl := lift_le.{w'}.2 (Substructure.lift_card_sigma_closure_le (L.sum L.skolem₁) (A ⊔ A'))
+  rw [lift_umax.{z, max u v}] at hcl
+  simp only [lift_lift, lift_max, lift_aleph0, lift_add] at hcl
+  rw [← lift_le.{max z u v}]
+  simp only [lift_lift]
+  exact hcl.trans (max_le hκ (add_le_of_le hκ (by simpa using hX)
+    (by simpa only [lift_add, lift_lift] using hL)))
 
-
-
-
-
-
-end Language
-
-end MSFirstOrder
+end ManySorted.Language

@@ -17,6 +17,3 @@ scope = "leanprover-community"
 
 [[lean_lib]]
 name = "MultisortedLogic"
-
-[[lean_lib]]
-name = "ProdExpr"

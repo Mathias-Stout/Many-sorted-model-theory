@@ -1,1276 +1,638 @@
-import MultisortedLogic.SortedTuple
-import Mathlib.SetTheory.Cardinal.Basic
-
 /-
-Based on the corresponding Mathlib file Mathlib\ModelTheory\Syntax.lean
-which was authored by Aaron Anderson, Jesse Michael Han, Floris van Doorn,
-and is released under the Apache 2.0 license.
+Copyright (c) 2026 Mathias Stout. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Aaron Crighton, John Nicholson, Mathias Stout
+-/
+
+module
+
+public import Mathlib.Logic.Embedding.Basic
+public import Mathlib.Logic.Equiv.Defs
+
+/-!
+# Many-sorted first-order logic: languages and structures
+
+Arities, languages, structures, and the maps between structures of many-sorted first-order logic.
+Terms and formulas are defined in `Syntax.lean` and their realization in `Semantics.lean`.
+
+## Main declarations
+
+* `Arity S`: encodes the shape of a product of types. Mathematically, an object `σ : Arity S`
+  corresponds to an element of the free magma on `S ⊔ {0}`. Given a realization `M : S → Type*`
+  of the sorts, `M [^] σ` denotes the (non-associative!) product of types `M s` of shape `σ`.
+* `σ.Idx s`: an element `σ : Arity S` may be viewed as a tree. Then `σ.Idx s` is the type of the
+  leaves in `σ` with label `s`.
+* `Language`, `Language.Structure`: definition of the type of a many-sorted first-order language
+  and structure
+* `Language.Hom`, `Language.Embedding`, `Language.Equiv` (`M →[L] N`, `M ↪[L] N`, `M ≃[L] N`):
+  homomorphisms, embeddings and equivalences, with corresponding classes `HomClass` and
+  `StrongHomClass`.
+
+## Design notes
+* `Arity S` occurs essentially everywhere where `ℕ` would be used to denote arity in a one-sorted
+  development.
+* `M [^] σ` is reducible and computes nested products, with `M [^] ⦃s⦄ = M s`. This is what
+  makes a sentence `∀' s φ` unfold to a statement quantifying over `M s`.
+* A sort coerces to the one-sort arity, so `∀' s φ` and `∀' ⦃s⦄ φ` are the same notation.
+* Concrete languages should be reducible (`abbrev`), so that their symbols have the type
+  `L.Functions σ t` without unfolding `L`; otherwise `simp` cannot rewrite their realization.
+* Unification trap: `?M ?t =?= M [^] ⦃t⦄` is solved by `?M := Interpret M`. Where the carrier of
+  `funMap` is only determined by the expected type, pass it explicitly as `(M := M)`.
+* In the interest of conciseness, we do not provide the left-handed counterpart to `extendRight`.
+  As it turns out, this is never needed in our following development.
 
 ## References
 
-For the Flypitch project:
-- [J. Han, F. van Doorn, *A formal proof of the independence of the continuum hypothesis*]
-  [flypitch_cpp]
-- [J. Han, F. van Doorn, *A formalization of forcing and the unprovability of
-  the continuum hypothesis*][flypitch_itp]
+This file was originally based on `Mathlib/ModelTheory/Basic.lean`, by Aaron Anderson, Jesse Michael
+Han and Floris van Doorn.
 -/
 
-universe u v u' v' w w' z z'
-open Cardinal
+@[expose] public section
 
-namespace MSFirstOrder
-open Signature
+universe u v w w' z u'
 
-section LanguageDefs
-set_option linter.checkUnivs false
-@[ext]
-structure Language (S : Type z) where
-  Functions : Signature S → S → Type u
-  Relations : Signature S → Type v
+namespace ManySorted
 
-namespace Language
+/-! ### Arities -/
+
+/-- An arity over the sorts `S`: it encodes a finite non-associative product of model-theoretic
+  sorts. As an example, `(σ ⨯ τ) ⨯ ρ` and `σ ⨯ (τ ⨯ ρ)` are different, but their interpretations
+  are canonically isomorphic. See also the definition of `Interpret`. -/
+inductive Arity (S : Type z) where
+  /-- The empty product. -/
+  | nil : Arity S
+  /-- A single sort. -/
+  | of : S → Arity S
+  /-- The product of two arities. -/
+  | prod : Arity S → Arity S → Arity S
+  deriving DecidableEq
+
+-- Write as `\X`, not as `\x`.
+@[inherit_doc] scoped[ManySorted] infixl:70 " ⨯ " => ManySorted.Arity.prod
+@[inherit_doc] scoped[ManySorted] notation "⦃" s "⦄" => ManySorted.Arity.of s
+@[inherit_doc] scoped[ManySorted] notation "⦃⦄" => ManySorted.Arity.nil
+
+namespace Arity
 
 variable {S : Type z}
-variable (L : Language.{u, v, z} S)
 
-/-- A language is relational when it has no function symbols. -/
-abbrev IsRelational : Prop := ∀ σ t, IsEmpty (L.Functions σ t)
+instance : Coe S (Arity S) := ⟨of⟩
 
-/-- A language is algebraic when it has no relation symbols. -/
-abbrev IsAlgebraic : Prop := ∀ σ, IsEmpty (L.Relations σ)
+/-- `M [^] σ` is the product of the carriers `M s` over the sorts of `σ`, bracketed like `σ`.
+For a single sort it is `M s` itself. -/
+@[reducible] def Interpret (M : S → Type w) : Arity S → Type w
+  | ⦃⦄ => PUnit
+  | ⦃s⦄ => M s
+  | σ ⨯ τ => Interpret M σ × Interpret M τ
 
-@[simp] protected def empty : Language S :=
-  ⟨fun _ _ => Empty, fun _ => Empty⟩
+@[inherit_doc] scoped[ManySorted] notation:80 M " [^] " σ:81 => ManySorted.Arity.Interpret M σ
 
-lemma Empty_relations_imp_algebraic (L : Language S)
-  (h : ∀ σ, L.Relations σ = Empty) : IsAlgebraic L :=
-  fun σ => by rw [h σ]; infer_instance
+/-- `σ.Idx s` is the type of positions of sort `s` in the arity `σ`. Short for 'Index'. -/
+inductive Idx : Arity S → S → Type z
+  /-- The unique position of `⦃s⦄`. -/
+  | var {s : S} : Idx ⦃s⦄ s
+  /-- A position in the left factor of a product. -/
+  | left {σ τ : Arity S} {s : S} : Idx σ s → Idx (σ ⨯ τ) s
+  /-- A position in the right factor of a product. -/
+  | right {σ τ : Arity S} {s : S} : Idx τ s → Idx (σ ⨯ τ) s
 
-lemma Empty_functions_imp_relational (L : Language S)
-  (h : ∀ σ t, L.Functions σ t = Empty) : IsRelational L :=
-  fun σ t => by rw [h σ t]; infer_instance
+namespace Idx
 
-instance : @IsAlgebraic.{0,0,z} S Language.empty :=
- by
-  have it: (∀ (σ : Signature S), Language.empty.Relations σ = Empty)
-  := by simp only [Language.empty, implies_true]
-  exact Empty_relations_imp_algebraic _ it
-
-instance : Inhabited (Language S) :=
-  ⟨Language.empty⟩
-
-/-- The sum of two languages with equal S consists of the disjoint union of
-  their symbols over their S. -/
-protected def sum (L' : (Language.{u', v', z} S)) : Language S :=
-  ⟨fun σ => fun t => L.Functions σ t  ⊕ L'.Functions σ t, fun σ => L.Relations σ ⊕ L'.Relations σ⟩
-
-/-- The type of constants in a given language. -/
-protected abbrev Constants t :=
-  L.Functions nil t
-
-/-- The type of symbols in a given language. -/
-abbrev Symbols :=
-  (Σ σ t, L.Functions σ t) ⊕ (Σ σ, L.Relations σ)
-
-/-- The cardinality of a language is the cardinality of its type of symbols. -/
-def card : Cardinal :=
-   #L.Symbols
-
-variable {L} {L' : Language.{u', v', z} S}
-
---New: simplified this lemma by removing helpers and making Cardinal lifts more explicit in
---by adding z (universe level of Sorts) to the lifts on the right. They are redundant but useful for
---proving.
-theorem card_eq_card_functions_add_card_relations :
-    L.card =
-      (Cardinal.sum fun σ => Cardinal.sum fun t => Cardinal.lift.{max v z, u} #(L.Functions σ t)) +
-        (Cardinal.sum fun σ'  => Cardinal.lift.{max u z, v} #(L.Relations σ')) := by
-  unfold card Symbols
-  repeat rw[mk_sum, mk_sigma, lift_sum]
-  simp_all only [mk_sigma, lift_sum]
-
-instance isRelational_sum [L.IsRelational] [L'.IsRelational] : IsRelational (L.sum L') :=
-  fun _ _ => instIsEmptySum
-
-instance isAlgebraic_sum [L.IsAlgebraic] [L'.IsAlgebraic] : IsAlgebraic (L.sum L') :=
-  fun _ => instIsEmptySum
-
-instance isEmpty_empty : IsEmpty (@Language.empty S).Symbols := by
-  simp only [Language.Symbols, isEmpty_sum, isEmpty_sigma]
-  unfold Language.empty
-  constructor
-  · exact fun _ => inferInstance
-  · exact inferInstance
+/-- Extend a map of positions by the identity on an extra right factor. -/
+def extendRight {σ τ ρ : Arity S} (g : ∀ s, σ.Idx s → τ.Idx s) :
+    ∀ s, (σ ⨯ ρ).Idx s → (τ ⨯ ρ).Idx s
+  | _, .left i => .left (g _ i)
+  | _, .right j => .right j
 
 @[simp]
-theorem card_empty : (@Language.empty S).card = 0 := by
-  unfold card
-  simp only [Language.empty, mk_sum, mk_sigma, mk_eq_zero, sum_const, lift_uzero, lift_zero,
-    mul_zero, lift_id, add_zero]
-
-instance Countable.countable_functions [h : Countable L.Symbols] :
-    Countable (Σ σ t, L.Functions σ t) :=
-  @Function.Injective.countable _ _ h _ Sum.inl_injective
+lemma extendRight_left {σ τ ρ : Arity S} (g : ∀ s, σ.Idx s → τ.Idx s) {s : S}
+    (i : σ.Idx s) : extendRight (ρ := ρ) g s (.left i) = .left (g s i) := rfl
 
 @[simp]
-theorem card_functions_sum (σ : Signature S) (t : S) :
-    #((L.sum L').Functions σ t) =
-    (Cardinal.lift.{u'} #(L.Functions σ t) + Cardinal.lift.{u} #(L'.Functions σ t) : Cardinal) := by
-  simp only [Language.sum, mk_sum]
+lemma extendRight_right {σ τ ρ : Arity S} (g : ∀ s, σ.Idx s → τ.Idx s) {s : S}
+    (j : ρ.Idx s) : extendRight g s (.right j) = .right j := rfl
+
+/-- Build a (dependent) map on `(σ ⨯ τ).Idx` from a map `σ.Idx` and `τ.Idx`. -/
+def elim {σ τ : Arity S} {C : S → Sort*} (f : ∀ s, σ.Idx s → C s) (g : ∀ s, τ.Idx s → C s) :
+    ∀ s, (σ ⨯ τ).Idx s → C s
+  | _, .left i => f _ i
+  | _, .right j => g _ j
 
 @[simp]
-theorem card_relations_sum (σ : Signature S) :
-    #((L.sum L').Relations σ) =
-      Cardinal.lift.{v'} #(L.Relations σ) + Cardinal.lift.{v} #(L'.Relations σ) := by
-  simp only [Language.sum, mk_sum]
+lemma elim_left {σ τ : Arity S} {C : S → Sort*} (f : ∀ s, σ.Idx s → C s)
+    (g : ∀ s, τ.Idx s → C s) {s : S} (i : σ.Idx s) : elim f g s (.left i) = f s i := rfl
 
-theorem card_sum {L' : Language.{u', v', z} S} :
-    (L.sum L').card = Cardinal.lift.{max u' v'} L.card + Cardinal.lift.{max u v} L'.card := by
-  unfold Language.sum
-  simp only [card, Symbols, mk_sum, mk_sigma,sum_add_distrib', lift_add, lift_sum,
-    lift_lift, add_assoc,
-    add_comm (Cardinal.sum fun σ => Cardinal.sum fun i => (#(L'.Functions σ i)).lift)]
+@[simp]
+lemma elim_right {σ τ : Arity S} {C : S → Sort*} (f : ∀ s, σ.Idx s → C s)
+    (g : ∀ s, τ.Idx s → C s) {s : S} (j : τ.Idx s) : elim f g s (.right j) = g s j := rfl
 
-/-- Passes decidableEq instance through functions, cf. 1-sorted case -/
-instance instDecidableEqFunctions {S : Type z} {f : Signature S → S → Type*}
-    {R : Signature S → Type*} (σ : Signature S) (t : S) [DecidableEq (f σ t)] :
-    DecidableEq ((⟨f, R⟩ : Language S).Functions σ t) := inferInstance
+@[simp]
+lemma elim_comp_left {σ τ : Arity S} {C : S → Sort*} (f : ∀ s, σ.Idx s → C s)
+    (g : ∀ s, τ.Idx s → C s) (s : S) : elim f g s ∘ .left = f s := rfl
 
-instance instDecidableEqRelations {S : Type z} {f : Signature S → S → Type*}
-     {R : Signature S → Type*} (σ : Signature S) [DecidableEq (R σ)] :
-    DecidableEq ((⟨f, R⟩ : Language S).Relations σ) := inferInstance
+@[simp]
+lemma elim_comp_right {σ τ : Arity S} {C : S → Sort*} (f : ∀ s, σ.Idx s → C s)
+    (g : ∀ s, τ.Idx s → C s) (s : S) : elim f g s ∘ .right = g s := rfl
 
-end Language
-end LanguageDefs
+/-- The empty arity has no positions. -/
+def elimNil {C : S → Sort*} : ∀ s, (⦃⦄ : Arity S).Idx s → C s := fun _ i => nomatch i
+
+/-- Drop an empty right factor, `σ ⨯ ⦃⦄ → σ`. -/
+def nilRight {σ : Arity S} : ∀ s, (σ ⨯ ⦃⦄).Idx s → σ.Idx s
+  | _, .left i => i
+
+/-- Reassociate positions, `σ ⨯ (τ ⨯ ρ) → (σ ⨯ τ) ⨯ ρ`. -/
+def assoc {σ τ ρ : Arity S} : ∀ s, (σ ⨯ (τ ⨯ ρ)).Idx s → ((σ ⨯ τ) ⨯ ρ).Idx s
+  | _, .left i => .left (.left i)
+  | _, .right (.left j) => .left (.right j)
+  | _, .right (.right k) => .right k
+
+/- ## OPEN QUESTION:
+  We would be interested in experimenting with some metaprogramming to help deal with associativity
+  of arities. Any input from the community on this is appreciated.
+-/
+
+end Idx
+
+section Mem
+
+variable {s : S}
+
+/-- Membership of sort `s` in Arity `σ`, mirroring the construction for `List`. -/
+inductive Mem (s : S) : Arity S → Prop
+ | of : Mem s ⦃s⦄
+ | left {σ τ : Arity S} : Mem s σ → Mem s (σ ⨯ τ)
+ | right {σ τ : Arity S} : Mem s τ → Mem s (σ ⨯ τ)
+
+/-- A sort `s` occurs in `σ`, written `s ∈ σ`, if `σ` has a position of sort `s`. -/
+instance : Membership S (Arity S) where
+  mem σ s := Mem s σ
+
+@[simp]
+theorem notMem_nil : s ∉ (⦃⦄ : Arity S) := nofun
+
+@[simp]
+theorem mem_of {t : S} : s ∈ ⦃t⦄ ↔ s = t := ⟨fun h => by cases h; rfl, fun h => h ▸ Mem.of⟩
+
+theorem mem_of_self : s ∈ ⦃s⦄ := by simp only [mem_of]
+
+theorem mem_left {σ τ : Arity S} : s ∈ σ → s ∈ σ ⨯ τ := .left
+
+theorem mem_right {σ τ : Arity S} : s ∈ τ → s ∈ σ ⨯ τ := .right
+
+@[simp]
+theorem mem_prod {σ τ : Arity S} : s ∈ σ ⨯ τ ↔ s ∈ σ ∨ s ∈ τ :=
+  ⟨fun h => by cases h with
+    | left hl => exact .inl hl
+    | right hr => exact .inr hr,
+   fun h => h.elim mem_left mem_right⟩
+
+/-- A sort with a position in `σ` occurs in `σ`. -/
+theorem Idx.mem {σ : Arity S} : σ.Idx s → s ∈ σ
+  | .var => mem_of_self
+  | .left i => mem_left i.mem
+  | .right i => mem_right i.mem
+
+theorem mem_iff_nonempty {σ : Arity S} : s ∈ σ ↔ Nonempty (σ.Idx s) :=
+  ⟨fun h => by
+    induction h with
+    | of => exact ⟨.var⟩
+    | left _ ih => exact ih.map .left
+    | right _ ih => exact ih.map .right,
+   fun ⟨i⟩ => i.mem⟩
+
+end Mem
+
+namespace Interpret
+
+variable {M : S → Type w}
+
+/-- The entry of a tuple at a position `i : σ.Idx s`. -/
+def get : {σ : Arity S} → M [^] σ → (s : S) → σ.Idx s → M s
+  | _, x, _, .var => x
+  | _, x, _, .left i => get x.1 _ i
+  | _, x, _, .right i => get x.2 _ i
+
+@[simp]
+lemma get_var {s : S} (x : M [^] ⦃s⦄) : get x s .var = x := rfl
+
+@[simp]
+lemma get_left {σ τ : Arity S} {s : S} (x : M [^] (σ ⨯ τ)) (i : σ.Idx s) :
+    get x s (.left i) = get x.1 s i := rfl
+
+@[simp]
+lemma get_right {σ τ : Arity S} {s : S} (x : M [^] (σ ⨯ τ)) (i : τ.Idx s) :
+    get x s (.right i) = get x.2 s i := rfl
+
+/-- The tuple with prescribed entries at each position of `σ.Idx`. -/
+def ofFn : {σ : Arity S} → (∀ s, σ.Idx s → M s) → M [^] σ
+  | nil, _ => PUnit.unit
+  | of s, f => f s .var
+  | prod _ _, f => (ofFn fun s i => f s (.left i), ofFn fun s i => f s (.right i))
+
+/-- `get` is a left inverse of `ofFn`. -/
+@[simp]
+theorem get_ofFn : ∀ {σ : Arity S} (f : ∀ s, σ.Idx s → M s) (s : S) (i : σ.Idx s),
+    get (ofFn f) s i = f s i
+  | _, _, _, .var => rfl
+  | _, f, _, .left i => get_ofFn (fun s i => f s (.left i)) _ i
+  | _, f, _, .right i => get_ofFn (fun s i => f s (.right i)) _ i
+
+@[simp]
+lemma ofFn_fst {σ τ : Arity S} (f : ∀ s, (σ ⨯ τ).Idx s → M s) :
+    (ofFn f).1 = ofFn fun s i => f s (.left i) := rfl
+
+@[simp]
+lemma ofFn_snd {σ τ : Arity S} (f : ∀ s, (σ ⨯ τ).Idx s → M s) :
+    (ofFn f).2 = ofFn fun s i => f s (.right i) := rfl
+
+/-- `get` is a right inverse of `ofFn`. -/
+@[simp]
+theorem ofFn_get : ∀ {σ : Arity S} (x : M [^] σ), ofFn (get x) = x
+  | nil, _ => rfl
+  | of _, _ => rfl
+  | prod _ _, (x, y) => congrArg₂ Prod.mk (ofFn_get x) (ofFn_get y)
+
+theorem get_injective {σ : Arity S} : Function.Injective (get : M [^] σ → _) :=
+  Function.LeftInverse.injective ofFn_get
+
+theorem ext {σ : Arity S} {x y : M [^] σ} (h : ∀ s i, get x s i = get y s i) : x = y :=
+  get_injective (funext₂ h)
+
+theorem ext_iff {σ : Arity S} {x y : M [^] σ} : x = y ↔ ∀ s i, get x s i = get y s i :=
+  ⟨fun h _ _ => h ▸ rfl, ext⟩
+
+/-- Pull a tuple back along a map of positions. -/
+def comap {τ : Arity S} : {σ : Arity S} → (∀ s, σ.Idx s → τ.Idx s) →  M [^] τ →  M [^] σ
+  | nil, _ , _ => PUnit.unit
+  | of s, g, x => x.get s (g s .var)
+  | prod _ _, g, x => (comap (fun s => g s ∘ .left) x, comap (fun s => g s ∘ .right) x)
+
+theorem comap_eq_ofFn {σ τ : Arity S} (g : ∀ s, σ.Idx s → τ.Idx s) (x : M [^] τ) :
+    x.comap g = ofFn (fun s i => x.get s (g s i)) := by
+  cases σ with
+  | nil => rfl
+  | of s => rfl
+  | prod σ₁ σ₂ =>
+    rw [Interpret.comap, ofFn, comap_eq_ofFn, comap_eq_ofFn]
+    simp only [Function.comp_apply]
+
+@[simp]
+lemma get_comap {σ τ : Arity S} (g : ∀ s, σ.Idx s → τ.Idx s) (x : M [^] τ) (s : S)
+    (i : σ.Idx s) : get (comap g x) s i = get x s (g s i) := by
+  rw [comap_eq_ofFn]
+  exact get_ofFn _ _ _
+
+/-! The tuple form of the `Idx` combinators: pulling back along each of them. The input tuple is a
+variable rather than a literal pair, so that `simp` also applies these lemmas under binders. -/
+
+@[simp]
+theorem comap_id {σ : Arity S} (x : M [^] σ) : x.comap (fun _ i => i) = x := by
+  rw [comap_eq_ofFn]
+  exact ofFn_get x
+
+@[simp]
+theorem comap_ofFn {σ τ : Arity S} (g : ∀ s, σ.Idx s → τ.Idx s) (f : ∀ s, τ.Idx s → M s) :
+    (ofFn f).comap g = ofFn fun s => f s ∘ g s := by
+  rw [comap_eq_ofFn]
+  simp only [get_ofFn]
+  rfl
+
+@[simp]
+theorem comap_left {σ τ : Arity S} (x : M [^] (σ ⨯ τ)) : x.comap (fun _ => .left) = x.1 := by
+  rw [comap_eq_ofFn]
+  exact ofFn_get x.1
+
+@[simp]
+theorem comap_right {σ τ : Arity S} (x : M [^] (σ ⨯ τ)) : x.comap (fun _ => .right) = x.2 := by
+  rw [comap_eq_ofFn]
+  exact ofFn_get x.2
+
+@[simp]
+theorem comap_extendRight {σ τ ρ : Arity S} (g : ∀ s, σ.Idx s → τ.Idx s) (x : M [^] (τ ⨯ ρ)) :
+    x.comap (Idx.extendRight g) = ((x.1.comap g, x.2) : M [^] (σ ⨯ ρ)) := by
+  rw [comap_eq_ofFn, comap_eq_ofFn]
+  exact Prod.ext rfl (ofFn_get x.2)
+
+@[simp]
+theorem comap_nilRight {σ : Arity S} (x : M [^] σ) :
+    x.comap (Idx.nilRight (σ := σ)) = ((x, PUnit.unit) : M [^] (σ ⨯ ⦃⦄)) := by
+  rw [comap_eq_ofFn]
+  exact Prod.ext (ofFn_get x) rfl
+
+@[simp]
+theorem comap_assoc {σ τ ρ : Arity S} (x : M [^] ((σ ⨯ τ) ⨯ ρ)) :
+    x.comap Idx.assoc = ((x.1.1, (x.1.2, x.2)) : M [^] (σ ⨯ (τ ⨯ ρ))) := by
+  rw [comap_eq_ofFn]
+  exact Prod.ext (ofFn_get x.1.1) (Prod.ext (ofFn_get x.1.2) (ofFn_get x.2))
+
+/-- Apply a family of maps entrywise. -/
+def map {N : S → Type w'} (f : ∀ s, M s → N s) : {σ : Arity S} → M [^] σ → N [^] σ
+  | nil, _ => PUnit.unit
+  | of s, x => f s x
+  | prod _ _, x => (map f x.1, map f x.2)
+
+section map
+
+variable {N : S → Type w'} {P : S → Type u'} (f : ∀ s, M s → N s)
+
+@[simp]
+lemma map_of {s : S} (x : M [^] ⦃s⦄) : map f x = f s x := rfl
+
+@[simp]
+lemma map_mk {σ τ : Arity S} (x : M [^] σ) (y : M [^] τ) :
+    map (σ := σ ⨯ τ) f (x, y) = (map f x, map f y) := rfl
+
+@[simp]
+lemma map_fst {σ τ : Arity S} (x : M [^] (σ ⨯ τ)) :
+    (map (σ := σ ⨯ τ) f x).1 = map f x.1 := rfl
+
+@[simp]
+lemma map_snd {σ τ : Arity S} (x : M [^] (σ ⨯ τ)) :
+    (map (σ := σ ⨯ τ) f x).2 = map f x.2 := rfl
+
+@[simp]
+theorem get_map : ∀ {σ : Arity S} (x : M [^] σ) (s : S) (i : σ.Idx s),
+    get (map f x) s i = f s (get x s i)
+  | _, _, _, .var => rfl
+  | _, x, _, .left i => get_map x.1 _ i
+  | _, x, _, .right i => get_map x.2 _ i
+
+theorem map_map (g : ∀ s, N s → P s) :
+    ∀ {σ : Arity S} (x : M [^] σ), map g (map f x) = map (fun s => g s ∘ f s) x
+  | nil, _ => rfl
+  | of _, _ => rfl
+  | prod _ _, x => congrArg₂ Prod.mk (map_map g x.1) (map_map g x.2)
+
+theorem map_ofFn {σ : Arity S} (g : ∀ s, σ.Idx s → M s) :
+    map f (ofFn g) = ofFn fun s => (f s) ∘ (g s) :=
+  ext fun s i => by simp only [get_map, get_ofFn, Function.comp_apply]
+
+@[simp]
+theorem map_id : ∀ {σ : Arity S} (x : M [^] σ), map (fun _ => id) x = x
+  | nil, _ => rfl
+  | of _, _ => rfl
+  | prod _ _, x => congrArg₂ Prod.mk (map_id x.1) (map_id x.2)
+
+@[simp]
+theorem map_id' {σ : Arity S} (x : M [^] σ) : map (fun _ a => a) x = x :=
+  map_id x
+
+variable {f}
+
+theorem map_injective (hf : ∀ s, Function.Injective (f s)) :
+    ∀ {σ : Arity S}, Function.Injective (map f : M [^] σ → N [^] σ)
+  | nil => Function.injective_of_subsingleton _
+  | of s => hf s
+  | prod _ _ => (map_injective hf).prodMap (map_injective hf)
+
+/-- `map f` is surjective on tuples of shape `σ` as soon as `f s` is surjective for all `s ∈ σ`. -/
+theorem map_surjective : ∀ {σ : Arity S}, (∀ s ∈ σ, Function.Surjective (f s)) →
+    Function.Surjective (map f : M [^] σ → N [^] σ)
+  | nil, _ => fun _ => ⟨PUnit.unit, rfl⟩
+  | of _, hf => hf _ mem_of_self
+  | prod _ _, hf =>
+    (map_surjective fun s h => hf s (mem_left h)).prodMap
+      (map_surjective fun s h => hf s (mem_right h))
+
+end map
+
+section merge
+
+/- A map `n₁ : ∀ s, ctx₁.Idx s → α s` can be seen as assigning names from `α` to each position in
+ ctx₁.Idx. -/
+variable {α : S → Type u'} {σ ctx₁ ctx₂ : Arity S} (n₁ : ∀ s, ctx₁.Idx s → α s)
+  (n₂ : ∀ s, ctx₂.Idx s → α s) (v : ∀ s, α s → M s) (xs : M [^] σ)
+
+/-- Merging two families of names, seen from the left family: the entries of the named part
+`ctx₁` of a tuple are unchanged when `ctx₂` is placed next to it. -/
+theorem get_ofFn_elim_left (s : S) (i : (ctx₁ ⨯ σ).Idx s) :
+    get (σ := ctx₁ ⨯ σ) (ofFn fun s => v s ∘ n₁ s, xs) s i =
+      get (σ := (ctx₁ ⨯ ctx₂) ⨯ σ) (ofFn fun s => v s ∘ Idx.elim n₁ n₂ s, xs) s
+        (Idx.extendRight (fun _ => .left) s i) := by
+  cases i <;> simp
+
+/-- Merging two families of names, seen from the right family. -/
+theorem get_ofFn_elim_right (s : S) (i : (ctx₂ ⨯ σ).Idx s) :
+    get (σ := ctx₂ ⨯ σ) (ofFn fun s => v s ∘ n₂ s, xs) s i =
+      get (σ := (ctx₁ ⨯ ctx₂) ⨯ σ) (ofFn fun s => v s ∘ Idx.elim n₁ n₂ s, xs) s
+        (Idx.extendRight (fun _ => .right) s i) := by
+  cases i <;> simp
+
+end merge
+
+instance nonempty [∀ s, Nonempty (M s)] {σ : Arity S} : Nonempty (M [^] σ) := by
+  induction σ with
+  | nil => exact ⟨PUnit.unit⟩
+  | of s => exact inferInstanceAs (Nonempty (M s))
+  | prod σ τ ih₁ ih₂ =>
+    obtain ⟨a⟩ := ih₁
+    obtain ⟨b⟩ := ih₂
+    exact ⟨(a, b)⟩
+
+end Interpret
+
+/-- Resolves the de Bruijn index `n` to a position of sort `s` in a stack-shaped arity
+`((⦃s₀⦄ ⨯ ⦃s₁⦄) ⨯ …) ⨯ ⦃sₖ⦄` (possibly starting with `⦃⦄`), counting from the right. -/
+class VarIndex (σ : Arity S) (n : ℕ) (s : outParam S) where
+  /-- The position that the numeral resolves to. -/
+  get : σ.Idx s
+
+instance VarIndex.instOf {s : S} : VarIndex ⦃s⦄ 0 s := ⟨.var⟩
+
+instance VarIndex.instZero {σ : Arity S} {s : S} : VarIndex (σ ⨯ ⦃s⦄) 0 s := ⟨.right .var⟩
+
+instance VarIndex.instSucc {σ τ : Arity S} {n : ℕ} {s : S} [i : VarIndex σ n s] :
+    VarIndex (σ ⨯ τ) (n + 1) s :=
+  ⟨.left i.get⟩
+
+/-! `simp` does not rewrite inside instance arguments, so tagging the instances `@[simp]` would
+not reduce `VarIndex.get`; these lemmas name the instance on the left-hand side instead. -/
+
+@[simp]
+lemma VarIndex.get_instOf {s : S} : (instOf (s := s)).get = .var := rfl
+
+@[simp]
+lemma VarIndex.get_instZero {σ : Arity S} {s : S} :
+    (instZero (σ := σ) (s := s)).get = .right .var := rfl
+
+@[simp]
+lemma VarIndex.get_instSucc {σ τ : Arity S} {n : ℕ} {s : S} [i : VarIndex σ n s] :
+    (instSucc (τ := τ) (i := i)).get = .left i.get := rfl
+
+end Arity
+
+open Arity
+
+/-! ### Languages and structures -/
+
+/-- A many-sorted first-order language: function symbols with an input arity and an output sort,
+and relation symbols with an arity. -/
+structure Language (S : Type z) where
+  /-- The function symbols `σ → t`. -/
+  Functions : Arity S → S → Type u
+  /-- The relation symbols on `σ`. -/
+  Relations : Arity S → Type v
 
 namespace Language
 
-section StructureDefs
+variable {S : Type z} (L : Language.{u, v} S)
 
+/-- Constant symbols of sort `t`: function symbols with empty input. -/
+protected abbrev Constants (t : S) := L.Functions ⦃⦄ t
 
-@[ext]
-class Structure {S} (L : Language S) (M : Fam.{w} S) where
-funMap : ∀ {σ t}, L.Functions σ t → M [^] σ → M t := by
-    exact fun {σ} => fun {t} => isEmptyElim
-RelMap : ∀ {σ}, L.Relations σ → (M [^] σ)  → Prop := by
-    exact fun {σ} => isEmptyElim
-
-
-end StructureDefs
-
-open Structure
-
-section MsStructureHoms
-
-variable {S : Type*} (L : Language S) (M : Fam.{w} S)
-
+/-- An `L`-structure on a family of carriers `M`. -/
+class Structure (M : S → Type w) where
+  /-- The interpretation of a function symbol. -/
+  funMap : ∀ {σ t}, L.Functions σ t → M [^] σ → M t
+  /-- The interpretation of a relation symbol. -/
+  RelMap : ∀ {σ}, L.Relations σ → M [^] σ → Prop
 
 open Structure
 
-@[reducible]
-def Inhabited.trivialStructure {α : Fam S} [Inhabited S] [h : ∀ t, Inhabited (α t)] :
-       L.Structure α := ⟨fun _ => fun _ =>  default , default⟩
+/-! ### Homomorphisms, embeddings and equivalences
 
+These are families of Mathlib's maps, embeddings and equivalences, one per sort, commuting with
+the symbols. They coerce to families of functions through `DFunLike`. -/
 
-variable (N : Fam.{w'} S) [L.Structure M] [L.Structure N]
+section Maps
 
+variable (M : S → Type w) (N : S → Type w') [L.Structure M] [L.Structure N]
 
-/-- Homomorphisms between sorted first-order L-structures.
-    In general it seems necessary to make σ and t explicit
-    to avoid type inference issues, since structures M may map
-    distinct S to the same type. -/
-@[ext]
+/-- A homomorphism of `L`-structures: a family of maps that commutes with the function symbols and
+preserves the relation symbols. -/
 structure Hom where
-  /-- The underlying function of a homomorphism of structures -/
-  toFun : M →ₛ N
-  /-- The homomorphism commutes with the interpretations of the function symbols -/
-  map_fun' : ∀ {σ t} (f : L.Functions σ t) (x : M [^] σ ),
-    toFun t (funMap f x) = funMap f (toFun <$>ₛ x) := by
-    intros; trivial
-  /-- The homomorphism sends related elements to related elements -/
-  map_rel' : ∀ {σ } (r : L.Relations σ) (x), RelMap r x → RelMap r (toFun <$>ₛ x ) := by
-    intros; trivial
+  /-- The underlying family of maps. -/
+  toFun : ∀ s, M s → N s
+  /-- The maps commute with the interpretations of the function symbols. -/
+  map_fun' : ∀ {σ t} (f : L.Functions σ t) (x : M [^] σ),
+    toFun t (funMap f x) = funMap f (x.map toFun)
+  /-- The maps send related tuples to related tuples. -/
+  map_rel' : ∀ {σ} (r : L.Relations σ) (x : M [^] σ), RelMap r x → RelMap r (x.map toFun)
 
-@[inherit_doc]
-scoped[MSFirstOrder] notation:25 A " →[" L "] " B => MSFirstOrder.Language.Hom L A B
+/-- An embedding of `L`-structures: a family of embeddings that commutes with the function
+symbols and preserves and reflects the relation symbols. -/
+structure Embedding where
+  /-- The underlying family of embeddings. -/
+  toEmbedding : ∀ s, M s ↪ N s
+  /-- The embeddings commute with the interpretations of the function symbols. -/
+  map_fun' : ∀ {σ t} (f : L.Functions σ t) (x : M [^] σ),
+    toEmbedding t (funMap f x) = funMap f (x.map (fun s => toEmbedding s))
+  /-- The embeddings preserve and reflect the relations. -/
+  map_rel' : ∀ {σ} (r : L.Relations σ) (x : M [^] σ),
+    RelMap r (x.map fun s => toEmbedding s) ↔ RelMap r x
 
-/-- An embedding of first-order sorted structures is a many-sorted embedding that
-commutes with the interpretations of functions and relations. -/
-@[ext]
-structure Embedding extends Fam.MSEmbedding M N where
-  map_fun' : ∀ {σ t} (f : L.Functions σ t) (x),
-    toFun t (funMap f x) = funMap f (toFun <$>ₛ x) := by
-      intros; trivial
-  map_rel' : ∀ {σ} (r : L.Relations σ) (x),
-    RelMap r (toFun <$>ₛ x) ↔ RelMap r x := by
-      intros; trivial
+/-- An isomorphism of `L`-structures: a family of equivalences that commutes with the function
+symbols and preserves and reflects the relation symbols. -/
+structure Equiv where
+  /-- The underlying family of equivalences. -/
+  toEquiv : ∀ s, M s ≃ N s
+  /-- The equivalences commute with the interpretations of the function symbols. -/
+  map_fun' : ∀ {σ t} (f : L.Functions σ t) (x : M [^] σ),
+    toEquiv t (funMap f x) = funMap f (x.map fun s => toEquiv s)
+  /-- The equivalences preserve and reflect the relations. -/
+  map_rel' : ∀ {σ} (r : L.Relations σ) (x : M [^] σ),
+    RelMap r (x.map fun s => toEquiv s) ↔ RelMap r x
 
-/- An embedding of first-order sorted structures. -/
-@[inherit_doc]
-scoped[MSFirstOrder] notation:25 A " ↪[" L "] " B => MSFirstOrder.Language.Embedding L A B
+@[inherit_doc] scoped[ManySorted] notation:25 A " →[" L "] " B => ManySorted.Language.Hom L A B
+@[inherit_doc] scoped[ManySorted] notation:25 A " ↪[" L "] " B =>
+  ManySorted.Language.Embedding L A B
+@[inherit_doc] scoped[ManySorted] notation:25 A " ≃[" L "] " B => ManySorted.Language.Equiv L A B
 
---For example:  variable (φ : M ↪[L] N)
-
-/-- An equivalence of first-order sorted structures is a many-sorted equivalence that
-commutes with the interpretations of functions and relations. -/
-structure Equiv extends Fam.MSEquiv M N where
-  map_fun' : ∀ (σ t) (f : L.Functions σ t) (x),
-    toFun t (funMap f x) = funMap f (toFun <$>ₛ x) := by
-      intros; trivial
-  map_rel' : ∀ (σ) (r : L.Relations σ) (x),
-    RelMap r (toFun <$>ₛ x ) ↔ RelMap r x := by
-      intros; trivial
-
-/-- The ext theorem for Equiv only needs to check equality of toFun -/
-@[ext]
-theorem Equiv.ext {L : Language S}
-    [L.Structure M] [L.Structure N]
-    {e₁ e₂ : Equiv L M N}
-    (h : ∀ t, e₁.toFun t = e₂.toFun t) : e₁ = e₂ := by
-  cases e₁ with
-  | mk a hf hr =>
-    cases e₂ with
-    | mk a' hf' hr' =>
-      -- MSEquiv bases are equal by ext lemma
-      have hMS : a = a' := by
-        ext t x
-        exact congr (h t) (rfl)
-      have hF: hf = hMS ▸ hf' := by rfl
-      have hR: hr = hMS ▸ hr' := by rfl
-      congr
-
-@[inherit_doc]
-scoped[MSFirstOrder] notation:25 A " ≃[" L "] " B => MSFirstOrder.Language.Equiv L A B
-
---For example:  variable (φ : M ≃[L] N)
-variable {L M N} {P : Fam S}
-
-/-- Interpretation of a constant symbol -/
-@[coe]
-def constantMap {t} (c : L.Constants t) : M t := funMap c default
-
-instance {t} : CoeTC (L.Constants t) (M t) :=
-  ⟨constantMap⟩
-
-theorem funMap_eq_coe_constants {t} {c : L.Constants t} {xs : nil.Interpret M} : funMap c xs = c :=
-  congr rfl (Unique.eq_default xs)
-
-example {α : Type} [Unique α] (x : α) : x = default := Unique.eq_default x
-
-/-- Given a language with a nonempty type of constants, any structure will be nonempty. This cannot
-  be a global instance, because `L` becomes a metavariable. -/
-theorem nonempty_of_nonempty_constants {t} [h : Nonempty (L.Constants t)] : Nonempty (M t):=
-  h.map (↑)
-
-/-- `HomClass L F M N` states that `F` is a type of `L`-homomorphisms. You should extend this
-  typeclass when you extend `MSFirstOrder.Language.Hom`.
-  This is a modified version of the one-sorted case where the typeclass assumption
-  `[FunLike F L M]` is replaced with `[FamMapClass F M N]`. This
-  means that an element φ of F can be coerced to a function which maps S `t` to functions
-  `M t → N t`. -/
-class HomClass (L : outParam (Language S)) (F : Type*) (M : (Fam S)) (N : outParam (Fam S))
-  [L.Structure M] [L.Structure N] extends Fam.FamMapClass F M N where
-
-  map_fun : ∀ (φ : F) {σ t} (f : L.Functions σ t) (x : M [^] σ ),
-               φ t (funMap f x) = funMap f (φ <$>ₛ x)
-
-  map_rel : ∀ (φ : F) {σ} (r : L.Relations σ) (x : M [^] σ ),
-              RelMap r x → RelMap r (φ <$>ₛ x : N [^] σ)
-
-/-- `StrongHomClass L F M N` states that `F` is a type of `L`-homomorphisms which preserve
-  relations in both directions. -/
-class StrongHomClass (L : outParam (Language S)) (F : Type*)
-    (M : outParam (Fam S)) (N : outParam (Fam S))
-    [L.Structure M] [L.Structure N] extends Fam.FamMapClass F M N where
-
-  map_fun : ∀ (φ : F) {σ t} (f : L.Functions σ t) (x : M [^] σ ),
-              φ t (funMap f x) = funMap f (φ <$>ₛ x)
-
-  map_rel : ∀ (φ : F) {σ} (r : L.Relations σ) (x : M [^] σ ),
-              RelMap r (φ <$>ₛ x : N[^]σ) ↔ RelMap r x
-
-/-- `StrongEquivHomClass L F M N` packages a strong hom class together with per-sort inverses.
-The inverse data is tied to the same underlying `FamMapClass` as `StrongHomClass`,
-which avoids map-coercion diamonds between separate classes. -/
-class StrongEquivHomClass (L : outParam (Language S)) (F : Type*)
-    (M : outParam (Fam S)) (N : outParam (Fam S))
-    [L.Structure M] [L.Structure N] extends StrongHomClass L F M N where
-  inv : F → (N →ₛ M)
-  left_inv : ∀ f t, Function.LeftInverse (inv f t) ((toFamMapClass.toFamMap f) t)
-  right_inv : ∀ f t, Function.RightInverse (inv f t) ((toFamMapClass.toFamMap f) t)
-
-@[reducible]
-def StrongEquivHomClass.toPerSortEquivLike
-    {S : Type*} {L : Language S} {M N : Fam S} {F : Type*}
-    [L.Structure M] [L.Structure N] [StrongEquivHomClass L F M N] :
-    Fam.PerSortEquivLike F M N where
-  toFamMapClass := StrongHomClass.toFamMapClass
-  inv := StrongEquivHomClass.inv
-  left_inv := StrongEquivHomClass.left_inv
-  right_inv := StrongEquivHomClass.right_inv
-
-namespace StrongEquivHomClass
-
-variable {F : Type*} [StrongEquivHomClass L F M N]
-
-@[simp]
-theorem apply_inv_apply (g : F) (s : S) (x : N s) :
-    g s ((StrongEquivHomClass.inv g) s x) = x := by
-  exact StrongEquivHomClass.right_inv g s x
-
-@[simp]
-theorem inv_apply_apply (g : F) (s : S) (x : M s) :
-    (StrongEquivHomClass.inv g) s (g s x) = x := by
- exact StrongEquivHomClass.left_inv g s x
-
-@[simp]
-theorem inv_comp (g : F) :
-    (StrongEquivHomClass.inv g) ∘ₛ (Fam.FamMapClass.toFamMap g) = Fam.FamMap.idₛ := by
-  ext s x
-  exact inv_apply_apply g s x
-
-@[simp]
-theorem comp_inv (g : F) :
-    (Fam.FamMapClass.toFamMap g) ∘ₛ (StrongEquivHomClass.inv g) = Fam.FamMap.idₛ := by
-  ext s x
-  exact apply_inv_apply g s x
-
-theorem apply_inv_apply_fun (g : F) :
-    (fun s => (Fam.FamMapClass.toFamMap g) s ∘ (StrongEquivHomClass.inv g) s) = fun _ => id := by
-  funext s
-  funext x
-  change ((Fam.FamMapClass.toFamMap g) s) ((StrongEquivHomClass.inv g) s x) = x
-  exact StrongEquivHomClass.right_inv g s x
-
-theorem inv_apply_apply_fun (g : F) :
-    (fun s => (StrongEquivHomClass.inv g) s ∘ (Fam.FamMapClass.toFamMap g) s) = fun _ => id := by
-  funext s
-  funext x
-  change ((StrongEquivHomClass.inv g) s) ((Fam.FamMapClass.toFamMap g) s x) = x
-  exact StrongEquivHomClass.left_inv g s x
-
-end StrongEquivHomClass
-
-instance (priority := 100) StrongHomClass.homClass {F : Type*} [StrongHomClass L F M N] :
-  HomClass L F M N where
-  toFamMapClass := StrongHomClass.toFamMapClass
-  map_fun := StrongHomClass.map_fun
-  map_rel φ _ R x := (StrongHomClass.map_rel φ R x).2
-
-/-- Not an instance to avoid a loop. -/
-@[reducible]
-def HomClass.strongHomClassOfIsAlgebraic [L.IsAlgebraic] {F M N} [L.Structure M]
-    [L.Structure N] [HomClass L F M N] :
-    StrongHomClass L F M N where
-  toFamMapClass := HomClass.toFamMapClass
-  map_fun := HomClass.map_fun
-  map_rel _ _ := isEmptyElim
-
-@[simp]
-theorem HomClass.map_constants {F M N t} [m : L.Structure M] [n : L.Structure N]
-    [h : HomClass L F M N]
-    (φ : F) (c : L.Constants t) : (φ t) c  = c  :=
-    (HomClass.map_fun φ c default).trans (congr rfl rfl)
-
-attribute [simp] HomClass.map_fun HomClass.map_rel StrongHomClass.map_fun StrongHomClass.map_rel
-
-/-- Any element of a `HomClass` can be realized as a multisorted first_order homomorphism. -/
-@[simps] def HomClass.toHom {F M N} [L.Structure M] [L.Structure N]
-    [HomClass L F M N] : F → M →[L] N := fun φ =>
-  ⟨φ, HomClass.map_fun φ, HomClass.map_rel φ⟩
-
-
-attribute [inherit_doc MSFirstOrder.Language.Hom.map_fun']
-  MSFirstOrder.Language.Embedding.map_fun' MSFirstOrder.Language.HomClass.map_fun
-  MSFirstOrder.Language.StrongHomClass.map_fun MSFirstOrder.Language.Equiv.map_fun'
-
-attribute [inherit_doc MSFirstOrder.Language.Hom.map_rel']
-  MSFirstOrder.Language.Embedding.map_rel' MSFirstOrder.Language.HomClass.map_rel
-  MSFirstOrder.Language.StrongHomClass.map_rel MSFirstOrder.Language.Equiv.map_rel'
-
-namespace Hom
-
-instance famMapClass : Fam.FamMapClass (M →[L] N) M N where
+instance : DFunLike (M →[L] N) S fun s => M s → N s where
   coe φ := φ.toFun
-  coe_injective := by
-    intro f g h
-    ext t x
-    exact congrFun (congrFun h t) x
-
-instance homClass : HomClass L (M →[L] N) M N where
-  toFamMapClass := inferInstance
-  map_fun := map_fun'
-  map_rel := map_rel'
-
-instance [L.IsAlgebraic] : StrongHomClass L (M →[L] N) M N :=
-  HomClass.strongHomClassOfIsAlgebraic
-
-@[simp]
-theorem toFun_eq_coe {t} {f : M →[L] N} : f.toFun t = (f t : M t → N t) :=
-  rfl
-
-theorem map_fun (φ : M →[L] N) {σ t} (f : L.Functions σ t) (x : M [^] σ ) :
-    φ t (funMap f x) = funMap f (φ <$>ₛ x) :=
-  HomClass.map_fun φ f x
-
-theorem map_constants {t} (φ : M →[L] N) (c : L.Constants t) : (φ t) c = c :=
-  HomClass.map_constants φ c
-
-theorem map_rel (φ : M →[L] N) {σ} (r : L.Relations σ) (x : M [^] σ ) :
-    RelMap r x → RelMap r (φ <$>ₛ x) :=
-  HomClass.map_rel φ r x
-
-end Hom
-
-end MsStructureHoms
-
-section IdHom
-
-namespace Hom
-open Structure Fam
-
-variable {S : Type z} (L : Language S) (M : Fam.{w} S) [L.Structure M]
-
-/-- The identity map from a structure to itself. -/
-@[refl]
-def id : M →[L] M where
-  toFun := Fam.FamMap.idₛ
-  map_fun' := by
-    intro _ _ _ xs
-    simp only [Fam.FamMap.idₛ_apply', Interpret.map_id]
-  map_rel' := by
-    intro  _ _ xs r
-    simp_all only [Interpret.map_id]
-
-variable {L} {M}
-
-instance : Inhabited (M →[L] M) :=
-  ⟨id L M⟩
-
-@[simp]
-theorem id_apply {t} (x : M t) : id L M t x = x :=
-  rfl
-
-end Hom
-
-end IdHom
-
-section CompHom
-
-open Structure
-
-namespace Hom
-variable {S : Type z} {L : Language S}
-          {M : Fam.{w} S} [L.Structure M]
-          {N : Fam.{w'} S} [L.Structure N]
-          {P : Fam S} [L.Structure P] {Q : Fam S} [L.Structure Q]
-
-/-- Composition of first-order homomorphisms. -/
-@[trans]
-def comp (hnp : N →[L] P) (hmn : M →[L] N) : M →[L] P where
-  toFun := hnp.toFun ∘ₛ hmn.toFun
-  map_fun' := by
-    intro _ _ _ xs
-    simp_all only [Fam.FamMap.comp_apply', Interpret.comp_map, toFun_eq_coe, map_fun]
-    rfl
-  map_rel' r xs h :=  by
-    rw [Interpret.comp_map]
-    exact (map_rel _ _ _ (map_rel _ _ _ h))
-
-@[simp]
-theorem comp_apply {t} (g : N →[L] P) (f : M →[L] N) (x : M t) : g.comp f t x = g t (f t x) :=
-  rfl
-
-/-- Composition of first-order homomorphisms is associative. -/
-theorem comp_assoc (f : M →[L] N) (g : N →[L] P) (h : P →[L] Q) :
-    (h.comp g).comp f = h.comp (g.comp f) :=
-  rfl
-
-@[simp]
-theorem comp_id (f : M →[L] N) : f.comp (id L M) = f :=
-  rfl
-
-@[simp]
-theorem id_comp (f : M →[L] N) : (id L N).comp f = f :=
-  rfl
-
-end Hom
-
-end CompHom
-
-section Embeddings
-
-variable {S : Type z} {L : Language S}
-          {M : Fam.{w} S} [L.Structure M]
-          {N : Fam.{w'} S} [L.Structure N]
-
-namespace Embedding
-open Fam
-
-instance famMapClass : Fam.FamMapClass (M ↪[L] N) M N where
-  coe f := f.toFun
-  coe_injective := by
-    intro f g h
-    ext t x
-    exact congrFun (congrFun h t) x
-
-instance : Fam.InjectivePerSort (M ↪[L] N) M N where
-  toFamMapClass := inferInstance
-  inj' f t := f.inj' t
-
-/-- The pointwise (single-sorted) embedding induced by a many-sorted embedding at sort `t`. -/
-def atSort (φ : M ↪[L] N) (t : S) : (M t) ↪ (N t) :=
-{ toFun := φ t
-  inj'  := φ.inj' t }
-
-@[simp] lemma atSort_apply (φ : M ↪[L] N) (t : S) (x : M t) :
-  φ.atSort t x = φ t x := rfl
-
-/-- Injectivity of `φ` at a given sort. -/
-@[simp] lemma injective (φ : M ↪[L] N) (t : S) :
-  Function.Injective (φ t) :=
-φ.inj' t
-
-/-- Pointwise cancellation at a sort. -/
-@[simp] lemma at_eq_iff (φ : M ↪[L] N) {t : S} {x y : M t} :
-  φ t x = φ t y ↔ x = y :=
-by
-  constructor
-  · intro h; exact φ.inj' t h
-  · intro h; simp only [h]
-
-instance strongHomClass : StrongHomClass L (M ↪[L] N) M N where
-  toFamMapClass := inferInstance
-  map_fun := map_fun'
-  map_rel := map_rel'
-
-theorem map_fun (φ : M ↪[L] N) {t : S} {σ : Signature S}
-    (f : L.Functions σ t) (x : M [^] σ) :
-    φ t (funMap f x) = funMap f (φ <$>ₛ x) :=
-  HomClass.map_fun φ f x
-
-theorem map_constants {t} (φ : M ↪[L] N) (c : L.Constants t) : φ t c = c :=
-  HomClass.map_constants φ c
-
-theorem map_rel (φ : M ↪[L] N) {σ : Signature S} (r : L.Relations σ) (x : M [^] σ) :
-    RelMap r (φ <$>ₛ x) ↔ RelMap r x :=
-  StrongHomClass.map_rel φ r x
-
-/-- A first-order embedding is also a first-order homomorphism. -/
-def toHom : (M ↪[L] N) → M →[L] N :=
-  HomClass.toHom
-
-@[simp]
-theorem coe_toHom {t} {f : M ↪[L] N} : (f.toHom t : M t → N t) = f t :=
-  rfl
-
-theorem coe_injective : @Function.Injective (M ↪[L] N) ((t: S) -> (M t → N t)) (↑)
-  | f, g, h => by
-    cases f
-    cases g
-    congr
-    ext t x
-    exact congr_fun (congr_arg (fun f => f t) h) x
-
-theorem toHom_injective : @Function.Injective (M ↪[L] N) (M →[L] N) (·.toHom) := by
-  intro f f' h
-  ext t x
-  exact congr_fun (congr_arg (fun f => f t) h) x
-
-@[simp]
-theorem toHom_inj {f g : M ↪[L] N} : f.toHom = g.toHom ↔ f = g :=
-  ⟨fun h ↦ toHom_injective h, fun h ↦ congr_arg (·.toHom) h⟩
-
-/-- In an algebraic language, any injective homomorphism is an embedding. -/
-@[simp]
-def ofInjective [L.IsAlgebraic] {f : M →[L] N} (hf : ∀ t,  Function.Injective (f t)) : M ↪[L] N :=
-  { f with
-    inj' := hf
-    map_rel' := fun {_} r x => StrongHomClass.map_rel f r x }
-
-@[simp]
-theorem coeFn_ofInjective [L.IsAlgebraic] {f : M →[L] N} (hf : ∀ t,  Function.Injective (f t)):
-    (ofInjective hf : (∀ t, M t → N t)) = f := by
-  ext t x
-  simp_all only [ofInjective]
-  rfl
-
-@[simp]
-theorem ofInjective_toHom [L.IsAlgebraic] {f : M →[L] N} (hf : ∀ t,  Function.Injective (f t)) :
-    (ofInjective hf).toHom = f := by
-  ext
-  simp_all only [ofInjective, Hom.toFun_eq_coe, coe_toHom]
-  rfl
-
-variable (L) (M)
-
-/-- The identity embedding from a structure to itself. -/
-@[refl]
-def refl : M ↪[L] M where
-  toFun := FamMap.idₛ
-  inj' := by
-    intro _ _ _ h
-    repeat' rw [FamMap.idₛ_apply'] at h
-    exact h
-  map_fun' := by
-    intros σ t f x
-    simp_all only [FamMap.idₛ_apply', Interpret.map_id]
-  map_rel' := by
-    intros σ r x
-    simp_all only [Interpret.map_id]
-
-variable {L} {M}
-
-instance : Inhabited (M ↪[L] M) :=
-  ⟨refl L M⟩
-
-@[simp]
-theorem refl_apply (t : S) (x : M t) : refl L M t x = x :=
-  rfl
-
-variable {P : Fam S} [L.Structure P] {Q : Fam S} [L.Structure Q]
-
-/-- Composition of first-order Embeddings. -/
-@[trans]
-def comp (hnp : N ↪[L] P) (hmn : M ↪[L] N) : M ↪[L] P where
-  toFun := hnp.toFun ∘ₛ hmn.toFun
-  inj' := by
-    intro t
-    exact (hnp.injective t).comp (hmn.injective t)
-  map_fun' := by
-    intros σ s f x
-    simp_all only [FamMap.comp_apply', Interpret.comp_map, map_fun']
-  map_rel' := by
-    intros σ r x
-    rw [Interpret.comp_map]
-    exact Iff.trans (hnp.map_rel' r (hmn.toFun <$>ₛ x)) (hmn.map_rel' r x)
-
-@[simp]
-theorem comp_apply (g : N ↪[L] P) (f : M ↪[L] N) t (x : M t) : g.comp f t x = g t (f t x) :=
-  rfl
-
-/-- Composition of first-order Embeddings is associative. -/
-theorem comp_assoc (f : M ↪[L] N) (g : N ↪[L] P) (h : P ↪[L] Q) :
-    (h.comp g).comp f = h.comp (g.comp f) :=
-  rfl
-
-theorem comp_injective (h : N ↪[L] P) :
-    Function.Injective (h.comp : (M ↪[L] N) →  (M ↪[L] P)) := by
-  intro f g hfg
-  ext t x
-  apply h.injective t
-  change h t (f t x) = h t (g t x)
-  repeat' rw [←comp_apply]
-  simp_all only [comp_apply]
-
-@[simp]
-theorem comp_inj (h : N ↪[L] P) (f g : M ↪[L] N) : h.comp f = h.comp g ↔ f = g :=
-  ⟨fun eq ↦ h.comp_injective eq, congr_arg h.comp⟩
-
-theorem toHom_comp_injective (h : N ↪[L] P) :
-    Function.Injective (h.toHom.comp : (M →[L] N) →  (M →[L] P)) := by
-  intro f g hfg
-  ext t x
-  apply (h.injective t)
-  have hx := congr_fun (congr_arg (fun φ => φ t) hfg) x
-  simpa only [Hom.toFun_eq_coe, at_eq_iff, Hom.comp_apply, coe_toHom] using hx
-
-@[simp]
-theorem toHom_comp_inj (h : N ↪[L] P) (f g : M →[L] N) : h.toHom.comp f = h.toHom.comp g ↔ f = g :=
-  ⟨fun eq ↦ h.toHom_comp_injective eq, congr_arg h.toHom.comp⟩
-
-@[simp]
-theorem comp_toHom (hnp : N ↪[L] P) (hmn : M ↪[L] N) :
-    (hnp.comp hmn).toHom = hnp.toHom.comp hmn.toHom :=
-  rfl
-
-@[simp]
-theorem comp_refl (f : M ↪[L] N) : f.comp (refl L M) = f := DFunLike.coe_injective rfl
-
-@[simp]
-theorem refl_comp (f : M ↪[L] N) : (refl L N).comp f = f := DFunLike.coe_injective rfl
-
-@[simp]
-theorem refl_toHom : (refl L M).toHom = Hom.id L M :=
-  rfl
-
-end Embedding
-
-open Fam
-
-/-- Any element of an injective `StrongHomClass` can be realized as a first_order embedding. -/
-def StrongHomClass.toEmbedding
-    {F M N}
-    [L.Structure M] [L.Structure N]
-    [StrongHomClass L F M N]
-    (φ : F) (inj : ∀ t, Function.Injective (φ t)) : M ↪[L] N :=
-  { toFun := FamMapClass.toFamMap φ
-    inj' := inj
-    map_fun' := fun f x => StrongHomClass.map_fun φ f x
-    map_rel' := fun r x => StrongHomClass.map_rel φ r x }
-
-@[simp] theorem StrongHomClass.toEmbedding_toFun
-    {F M N}
-    [L.Structure M] [L.Structure N]
-    [StrongHomClass L F M N]
-    (φ : F) (inj : ∀ t, Function.Injective (φ t)) :
-    (StrongHomClass.toEmbedding (L := L) (M := M) (N := N) φ inj).toFun =
-      FamMapClass.toFamMap φ := rfl
-
-@[simp] theorem StrongHomClass.toEmbedding_apply
-    {F M N}
-    [L.Structure M] [L.Structure N]
-    [StrongHomClass L F M N]
-    (φ : F) (inj : ∀ t, Function.Injective (φ t)) (t) (x) :
-    StrongHomClass.toEmbedding (L := L) (M := M) (N := N) φ inj t x = φ t x := rfl
-
-end Embeddings
-
-section Equivs
-variable {S : Type z} {L : Language S}
-          {M : Fam.{w} S} [L.Structure M]
-          {N : Fam.{w'} S} [L.Structure N]
-
-namespace Equiv
-
-instance famMapClass : Fam.FamMapClass (M ≃[L] N) M N where
-  coe f := f.toFun
-  coe_injective := by
-    intro f g h
-    apply Language.Equiv.ext
-    intro t
-    funext x
-    exact congrFun (congrFun h t) x
-
-/-- We can also do ext arguments at the sort level. -/
-@[ext] theorem ext_sort
-  {f g : M ≃[L] N} (h : ∀ t, f t = g t) : f = g :=
-by
-  apply ext
-  intro t
-  exact h t
-
-/-- `M ≃[L] N` forms a per-sort equivalence-like structure. -/
-instance : Fam.PerSortEquivLike (M ≃[L] N) M N where
-  toFamMapClass := inferInstance
-  inv f := f.invFun
-  left_inv f t := f.left_inv' t
-  right_inv f t := f.right_inv' t
-
-instance : StrongEquivHomClass L (M ≃[L] N) M N where
-  toFamMapClass := inferInstance
-  map_fun := map_fun'
-  map_rel := map_rel'
-  inv f := f.invFun
-  left_inv f t := f.left_inv' t
-  right_inv f t := f.right_inv' t
-
-/-- The inverse of a first-order equivalence is a first-order equivalence. -/
-@[symm]
-def symm (φ : M ≃[L] N) : N ≃[L] M :=
-  { toFun := φ.invFun
-    invFun := φ.toFun
-    left_inv' := φ.right_inv'
-    right_inv' := φ.left_inv'
-    map_fun' := by
-      intro σ t f x
-      -- Show the equality by applying φ.toFun t and using injectivity
-      apply ((φ.left_inv' t).injective)
-      -- After applying φ.toFun t to both sides we obtain two equal terms
-      have h := φ.map_fun' σ t f (φ.invFun <$>ₛ x)
-      -- Simplify the composed sorted tuple
-      have hx : (φ.toFun <$>ₛ (φ.invFun <$>ₛ x)) = x := by
-        have : (φ.toFun ∘ₛ φ.invFun) = Fam.FamMap.idₛ := by
-          ext ; simp_all only [Fam.FamMap.comp_apply', Fam.MSEquiv.to_inv, Fam.FamMap.idₛ_apply']
-        simp_all only [← Interpret.comp_map, Interpret.map_id]
-      -- Right side (image of the target expression)
-      have hRight : φ.toFun t (funMap f (φ.invFun <$>ₛ x)) = funMap f x := by
-        simpa only [hx] using h
-      -- Left side (image of the source expression)
-      have hLeft : φ.toFun t (φ.invFun t (funMap f x)) = funMap f x := by
-        simp only [Fam.MSEquiv.to_inv]
-      -- Conclude by comparing the two images
-      simp only [hLeft, hRight]
-    map_rel' := by
-      intro σ r x
-      -- Start from φ.map_rel' applied to (φ.invFun <$>ₛ x)
-      have h := φ.map_rel' σ r (φ.invFun <$>ₛ x)
-      have hx : (φ.toFun <$>ₛ (φ.invFun <$>ₛ x)) = x := by
-        rw [← Interpret.comp_map]
-        simp only [Fam.MSEquiv.to_compₛ, Interpret.map_id]
-      -- Rewrite to get RelMap r x ↔ RelMap r (φ.invFun <$>ₛ x)
-      have h' : RelMap r x ↔ RelMap r (φ.invFun <$>ₛ x) := by
-        simpa only [hx] using h
-      -- Flip the equivalence for the inverse direction
-      exact h'.symm }
-
-theorem symm_bijective : Function.Bijective (symm : (M ≃[L] N) → (N ≃[L] M)) :=
-by
-  refine ⟨?inj, ?surj⟩
-  · intro f g h
-    -- h : symm f = symm g
-    have h' := congrArg (symm (M:=N) (N:=M)) h
-    -- simplify double symm
-    have hf : symm (symm f) = f := by cases f; rfl
-    have hg : symm (symm g) = g := by cases g; rfl
-    simpa only [hf, hg] using h'
-  · intro g
-    refine ⟨symm g, ?_⟩
-    have hg : symm (symm g) = g := by cases g; rfl
-    simp only [symm]
-
-@[simp]
-theorem apply_symm_apply {t} (f : M ≃[L] N) (a : N t) : f t (f.symm t a) = a := by
-  -- follows from the right inverse property of f
-  exact f.right_inv' t a
-
-@[simp]
-theorem symm_apply_apply {t} (f : M ≃[L] N) (a : M t) : f.symm t (f t a) = a := by
-  exact f.left_inv' t a
-
-theorem map_fun {t : S} (φ : M ≃[L] N) {σ : Signature S}
-    (f : L.Functions σ t) (x : M [^] σ) :
-    φ t (funMap f x) = funMap f (φ <$>ₛ x) :=
-  HomClass.map_fun φ f x
-
-theorem map_constants {t : S} (φ : M ≃[L] N) (c : L.Constants t) : φ t c = c :=
-  HomClass.map_constants φ c
-
-theorem map_rel (φ : M ≃[L] N) {σ : Signature S} (r : L.Relations σ) (x : M [^] σ) :
-    RelMap r (φ <$>ₛ x) ↔ RelMap r x :=
-  StrongHomClass.map_rel φ r x
-
-/-- A first-order equivalence is also a first-order embedding. -/
-def toEmbedding : (M ≃[L] N) → M ↪[L] N :=
-  fun φ => StrongHomClass.toEmbedding φ (fun t => (φ.left_inv' t).injective)
-
-/-- A first-order equivalence is also a first-order homomorphism. -/
-def toHom : (M ≃[L] N) → M →[L] N :=
-  HomClass.toHom
-
-@[simp]
-theorem toEmbedding_toHom (f : M ≃[L] N) : f.toEmbedding.toHom = f.toHom :=
-  by
-    ext t x
+  coe_injective φ ψ h := by cases φ; cases ψ; cases h; rfl
+
+instance : DFunLike (M ↪[L] N) S fun s => M s → N s where
+  coe φ s := φ.toEmbedding s
+  coe_injective φ ψ h := by
+    obtain ⟨φ, _, _⟩ := φ
+    obtain ⟨ψ, _, _⟩ := ψ
+    obtain rfl : φ = ψ := funext fun s => DFunLike.coe_injective (congrFun h s)
     rfl
 
-@[simp]
-theorem coe_toHom {f : M ≃[L] N} :
-    (f.toHom : (t: S) → (M t → N t)) = (f :(t: S) → (M t → N t)) := rfl
-
-@[simp]
-theorem coe_toEmbedding (f : M ≃[L] N) :
-    (f.toEmbedding : (t: S) → (M t → N t)) = (f : (t: S) → (M t → N t)) := by
-  funext t x
-  rfl
-
-theorem injective_toEmbedding : Function.Injective (toEmbedding : (M ≃[L] N) → M ↪[L] N) := by
-  intro f g h
-  apply ext_sort
-  intro t
-  funext x
-  exact congrArg (fun e : M ↪[L] N => e t x) h
-
-theorem coe_injective : @Function.Injective (M ≃[L] N) ((t: S) → (M t → N t)) (↑) :=
-  DFunLike.coe_injective
-
-theorem bijective {t} (f : M ≃[L] N) : Function.Bijective (f t) := by
-  constructor
-  · intro x y h
-    have := congrArg (f.symm t) h
-    simpa only [symm_apply_apply] using this
-  · intro y
-    refine ⟨f.symm t y, ?_⟩
-    simp only [apply_symm_apply]
-
-theorem injective {t} (f : M ≃[L] N) : Function.Injective (f t) :=
-  (f.bijective).1
-
-theorem surjective {t} (f : M ≃[L] N) : Function.Surjective (f t) :=
-  (f.bijective).2
-
-variable (L) (M)
-
-/-- The identity equivalence from a structure to itself. -/
-@[refl]
-def refl : M ≃[L] M where
-  toFun := Fam.FamMap.idₛ
-  invFun := Fam.FamMap.idₛ
-  left_inv' := by
-    intro t x; rfl
-  right_inv' := by
-    intro t x; rfl
-  map_fun' := by
-    intros σ t f x
-    rw [Interpret.map_id]
-    rfl
-  map_rel' := by
-    intros σ r x
-    rw [Interpret.map_id]
-
-
-variable {L} {M}
-
-instance : Inhabited (M ≃[L] M) :=
-  ⟨refl L M⟩
-
-@[simp]
-theorem refl_apply {t} (x : M t) : refl L M t x = x := by simp only [refl]; rfl
-
-variable {P : Fam S} [L.Structure P] {Q : Fam S} [L.Structure Q]
-
-/-- Composition of first-order equivalences. -/
-@[trans]
-def comp (hnp : N ≃[L] P) (hmn : M ≃[L] N) : M ≃[L] P :=
-{ toFun := hnp.toFun ∘ₛ hmn.toFun
-  invFun := hmn.symm.toFun ∘ₛ hnp.symm.toFun
-  left_inv' := by
-    intro t x
-    simp only [Fam.FamMap.comp_apply', symm, Fam.MSEquiv.inv_to]
-  right_inv' := by
-    intro t y
-    simp only [Fam.FamMap.comp_apply', symm, Fam.MSEquiv.to_inv]
-  map_fun' := by
-    intro σ t f x
-    calc
-      hnp t (hmn t (funMap f x))
-          = hnp t (funMap f (hmn <$>ₛ x)) := by simp only [map_fun]
-      _   = funMap f (hnp <$>ₛ (hmn <$>ₛ x)) := by simp only [map_fun]
-      _   = funMap f ((hnp ∘ₛ hmn.toFun) <$>ₛ x) := by
-        rw[Interpret.comp_map]
-        rfl
-  map_rel' := by
-    intro σ r x
-    -- compose the equivalences from hnp and hmn
-    have h₁ := hnp.map_rel' σ r (hmn.toFun <$>ₛ x)
-    have h₂ := hmn.map_rel' σ r x
-    rw[← Interpret.comp_map] at h₁
-    rw[← h₂,← h₁]
-    }
-
-@[simp]
-theorem comp_apply (g : N ≃[L] P) (f : M ≃[L] N) (t) (x : M t) : g.comp f t x = g t (f t x) :=
-  rfl
-
-@[simp]
-theorem comp_refl (g : M ≃[L] N) : g.comp (refl L M) = g :=
-  rfl
-
-@[simp]
-theorem refl_comp (g : M ≃[L] N) : (refl L N).comp g = g :=
-  rfl
-
-@[simp]
-theorem refl_toEmbedding : (refl L M).toEmbedding = Embedding.refl L M :=
-  by
-    ext t x
+instance : DFunLike (M ≃[L] N) S fun s => M s → N s where
+  coe φ s := φ.toEquiv s
+  coe_injective φ ψ h := by
+    obtain ⟨φ, _, _⟩ := φ
+    obtain ⟨ψ, _, _⟩ := ψ
+    obtain rfl : φ = ψ := funext fun s => DFunLike.coe_injective (congrFun h s)
     rfl
 
-@[simp]
-theorem refl_toHom : (refl L M).toHom = Hom.id L M :=
-  rfl
+end Maps
 
-/-- Composition of first-order homomorphisms is associative. -/
-theorem comp_assoc (f : M ≃[L] N) (g : N ≃[L] P) (h : P ≃[L] Q) :
-    (h.comp g).comp f = h.comp (g.comp f) :=
-  rfl
+/-- `HomClass L F M N`: the elements of `F` are homomorphisms of `L`-structures `M → N`. -/
+class HomClass (L : outParam (Language.{u, v} S)) (F : Type*) (M : outParam (S → Type w))
+    (N : outParam (S → Type w')) [DFunLike F S fun s => M s → N s] [L.Structure M]
+    [L.Structure N] : Prop where
+  /-- The maps commute with the interpretations of the function symbols. -/
+  map_fun : ∀ (φ : F) {σ t} (f : L.Functions σ t) (x : M [^] σ),
+    φ t (funMap f x) = funMap f (x.map φ)
+  /-- The maps send related tuples to related tuples. -/
+  map_rel : ∀ (φ : F) {σ} (r : L.Relations σ) (x : M [^] σ), RelMap r x → RelMap r (x.map φ)
 
-theorem injective_comp (h : N ≃[L] P) :
-    Function.Injective (h.comp : (M ≃[L] N) →  (M ≃[L] P)) := by
-  intro f g hfg
-  ext t x
-  -- compare the images under h at sort t
-  have hpoint := congrArg (fun e : M ≃[L] P => e t x) hfg
-  -- use injectivity of h at sort t
-  exact (h.injective ) (by simpa only [comp_apply] using hpoint
-)
+/-- `StrongHomClass L F M N`: the elements of `F` are homomorphisms of `L`-structures `M → N`
+that also reflect the relation symbols. -/
+class StrongHomClass (L : outParam (Language.{u, v} S)) (F : Type*) (M : outParam (S → Type w))
+    (N : outParam (S → Type w')) [DFunLike F S fun s => M s → N s] [L.Structure M]
+    [L.Structure N] : Prop where
+  /-- The maps commute with the interpretations of the function symbols. -/
+  map_fun : ∀ (φ : F) {σ t} (f : L.Functions σ t) (x : M [^] σ),
+    φ t (funMap f x) = funMap f (x.map φ)
+  /-- The maps preserve and reflect the relations. -/
+  map_rel : ∀ (φ : F) {σ} (r : L.Relations σ) (x : M [^] σ), RelMap r (x.map φ) ↔ RelMap r x
 
+section ToHom
 
-@[simp]
-theorem comp_toHom (hnp : N ≃[L] P) (hmn : M ≃[L] N) :
-    (hnp.comp hmn).toHom = hnp.toHom.comp hmn.toHom :=
-  rfl
+variable {L F} {M : S → Type w} {N : S → Type w'} [L.Structure M] [L.Structure N]
+  [DFunLike F S fun s => M s → N s]
 
-@[simp]
-theorem comp_toEmbedding (hnp : N ≃[L] P) (hmn : M ≃[L] N) :
-    (hnp.comp hmn).toEmbedding = hnp.toEmbedding.comp hmn.toEmbedding :=
-  by
-    ext t x
-    rfl
-
-@[simp]
-theorem self_comp_symm (f : M ≃[L] N) : f.comp f.symm = refl L N := by
-  ext; rw [comp_apply, apply_symm_apply, refl_apply]
-
-@[simp]
-theorem symm_comp_self (f : M ≃[L] N) : f.symm.comp f = refl L M := by
-  ext; rw [comp_apply, symm_apply_apply, refl_apply]
-
-@[simp]
-theorem symm_comp_self_toEmbedding (f : M ≃[L] N) :
-    f.symm.toEmbedding.comp f.toEmbedding = Embedding.refl L M := by
-  rw [← comp_toEmbedding, symm_comp_self, refl_toEmbedding]
-
-@[simp]
-theorem self_comp_symm_toEmbedding (f : M ≃[L] N) :
-    f.toEmbedding.comp f.symm.toEmbedding = Embedding.refl L N := by
-  rw [← comp_toEmbedding, self_comp_symm, refl_toEmbedding]
-
-@[simp]
-theorem symm_comp_self_toHom (f : M ≃[L] N) :
-    f.symm.toHom.comp f.toHom = Hom.id L M := by
-  rw [← comp_toHom, symm_comp_self, refl_toHom]
-
-@[simp]
-theorem self_comp_symm_toHom (f : M ≃[L] N) :
-    f.toHom.comp f.symm.toHom = Hom.id L N := by
-  rw [← comp_toHom, self_comp_symm, refl_toHom]
-
-@[simp]
-theorem comp_symm (f : M ≃[L] N) (g : N ≃[L] P) : (g.comp f).symm = f.symm.comp g.symm :=
-  rfl
-
-theorem comp_right_injective (h : M ≃[L] N) :
-    Function.Injective (fun f ↦ f.comp h : (N ≃[L] P) → (M ≃[L] P)) := by
-  intro f g hfg
-  convert (congr_arg (fun r : (M ≃[L] P) ↦ r.comp h.symm) hfg) <;>
-    rw [comp_assoc, self_comp_symm, comp_refl]
-
-@[simp]
-theorem comp_right_inj (h : M ≃[L] N) (f g : N ≃[L] P) : f.comp h = g.comp h ↔ f = g :=
-  ⟨fun eq ↦ h.comp_right_injective eq, congr_arg (fun (r : N ≃[L] P) ↦ r.comp h)⟩
-
-end Equiv
-
-/-- Any element of a bijective `StrongHomClass`
-  can be realized as a sorted first_order isomorphism. -/
-def StrongHomClass.toEquiv
-    {F} {M N : Fam S}
-    [L.Structure M] [L.Structure N]
-    [StrongHomClass L F M N]
-    (φ : F)
-    (inv : N →ₛ M)
-    (left_inv : ∀ t, Function.LeftInverse (inv t) (φ t))
-    (right_inv : ∀ t, Function.RightInverse (inv t) (φ t)) :
-    M ≃[L] N :=
-  { toFun := Fam.FamMapClass.toFamMap φ
-    invFun := inv
-    left_inv' := left_inv
-    right_inv' := right_inv
-    map_fun' := fun _ _ f x => StrongHomClass.map_fun φ f x
-    map_rel' := fun _ r x => StrongHomClass.map_rel φ r x }
-
-@[simp] theorem StrongHomClass.toEquiv_toFun
-    {F} {M N : Fam S}
-    [L.Structure M] [L.Structure N]
-    [StrongHomClass L F M N]
-    (φ : F) (inv : N →ₛ M)
-    (left_inv : ∀ t, Function.LeftInverse (inv t) (φ t))
-    (right_inv : ∀ t, Function.RightInverse (inv t) (φ t)) :
-    (StrongHomClass.toEquiv (L := L) (M := M) (N := N) φ inv left_inv right_inv).toFun =
-      Fam.FamMapClass.toFamMap φ := rfl
-
-@[simp] theorem StrongHomClass.toEquiv_apply
-    {F} {M N : Fam S}
-    [L.Structure M] [L.Structure N]
-    [StrongHomClass L F M N]
-    (φ : F) (inv : N →ₛ M)
-    (left_inv : ∀ t, Function.LeftInverse (inv t) (φ t))
-    (right_inv : ∀ t, Function.RightInverse (inv t) (φ t))
-    (t) (x) :
-    StrongHomClass.toEquiv (L := L) (M := M) (N := N) φ inv left_inv right_inv t x = φ t x := rfl
-
-end Equivs
-
-section SumStructure
-
-variable {S : Type z} (L₁ L₂ : Language S) (S') [L₁.Structure S'] [L₂.Structure S']
-
-instance sumStructure : (L₁.sum L₂).Structure S' where
-  funMap := by
-    intro σ t f
-    cases f with
-    | inl f1 =>
-        intro x
-        exact funMap (L:=L₁) f1 x
-    | inr f2 =>
-        intro x
-        exact funMap (L:=L₂) f2 x
-  RelMap := by
-    intro σ r
-    cases r with
-    | inl r1 =>
-        intro x
-        exact RelMap (L:=L₁) r1 x
-    | inr r2 =>
-        intro x
-        exact RelMap (L:=L₂) r2 x
-
-variable {L₁ L₂ : Language S} {S'} [L₁.Structure S'] [L₂.Structure S']
-
-@[simp]
-theorem funMap_sumInl {t : S} {σ : Signature S} (f : L₁.Functions σ t) :
-    @funMap S (L₁.sum L₂) S' _ σ t (Sum.inl f) = funMap f :=
-  rfl
-
-@[simp]
-theorem funMap_sumInr {t : S} {σ : Signature S} (f : L₂.Functions σ t) :
-    @funMap S (L₁.sum L₂) S' _ σ t (Sum.inr f) = funMap f :=
-  rfl
-
-@[simp]
-theorem relMap_sumInl {σ : Signature S} (R : L₁.Relations σ) :
-    @RelMap S (L₁.sum L₂) S' _ σ (Sum.inl R) = RelMap R :=
-  rfl
-
-@[simp]
-theorem relMap_sumInr {σ : Signature S} (R : L₂.Relations σ) :
-    @RelMap S (L₁.sum L₂) S' _ σ (Sum.inr R) = RelMap R :=
-  rfl
-
-end SumStructure
-
-section Empty
-
-variable {S : Type z} {L : Language S} {M : Fam.{w} S} [L.Structure M]
-
-/-- Any type can be made uniquely into a structure over the empty language. -/
-@[reducible]
-def emptyStructure : Language.empty.Structure M where
-  funMap := by
-    intro σ t f
-    cases f
-  RelMap := by
-    intro σ r
-    cases r
-
-instance : Unique (Language.empty.Structure M) :=
-{ default := emptyStructure
-  uniq := by
-    intro S
-    -- two structures over the empty language are equal since their data is vacuous
-    refine Structure.ext ?_ ?_
-    · funext σ t f x; cases f
-    · funext σ r x; cases r }
-
-variable {N : Fam.{w'} S} [L.Structure N]
-        [Language.empty.Structure M] [Language.empty.Structure N]
-
-instance (priority := 100) strongHomClassEmpty {F} [Fam.FamMapClass F M N] :
-    StrongHomClass Language.empty F M N where
-  toFamMapClass := inferInstance
-  map_fun := by
-    intro φ σ t f x
-    cases f
-  map_rel := by
-    intro φ σ r x
-    cases r
-
-@[simp]
-theorem empty.nonempty_embedding_iff :
-    Nonempty (M ↪[Language.empty] N) ↔
-      ∀ t, Cardinal.lift.{w', w} #(M t) ≤ Cardinal.lift #(N t) :=
-  by
-  constructor
-  · intro h t
-    rcases h with ⟨φ⟩
-    -- Injectivity at sort t
-    have hInj : Function.Injective (φ t) := φ.injective t
-    -- Lift the cardinal inequality
-    have hNe: Nonempty (M t ↪ N t) := ⟨⟨φ t, hInj⟩⟩
-    exact Cardinal.lift_mk_le'.2 hNe
-  · intro h
-    have hFamInj: ∀ (t: S), Nonempty (M t ↪ N t) := by
-      intro t; simp only [Cardinal.lift_mk_le'.1 (h t)]
-    have hMSE: Nonempty (Fam.MSEmbedding M N) := by
-      apply Nonempty.map Fam.MSEmbedding.fromEmbeddings
-      exact ⟨fun t => Classical.choice (hFamInj t)⟩
-    exact (Nonempty.map (fun e => StrongHomClass.toEmbedding
-      (L := Language.empty) (M := M) (N := N) e (fun t => e.inj' t)) hMSE)
-
-@[simp]
-theorem empty.nonempty_equiv_iff :
-    Nonempty (M ≃[Language.empty] N) ↔
-      ∀ t, Cardinal.lift.{w', w} #(M t) = Cardinal.lift #(N t) :=
-  by
-  constructor
-  · intro h t
-    rcases h with ⟨φ⟩
-    -- Bijectivity at sort t
-    have hBij : Function.Bijective (φ t) := φ.bijective
-    -- Lift the cardinal equality
-    have hNe: Nonempty (M t ≃ N t) :=
-      ⟨⟨φ t, φ.invFun t, φ.left_inv' t, φ.right_inv' t⟩⟩
-    exact Cardinal.lift_mk_eq'.2 hNe
-  · intro h
-    have hMSE: Nonempty (Fam.MSEquiv M N) := by
-      apply Nonempty.map Fam.MSEquiv.fromEquivs
-      exact ⟨fun t => Classical.choice (Cardinal.lift_mk_eq'.1 (h t))⟩
-    exact (Nonempty.map (fun e => StrongHomClass.toEquiv
-      (L := Language.empty) (M := M) (N := N) e e.invFun e.left_inv' e.right_inv') hMSE)
-
-/-- Makes a `Language.empty.Hom` out of any function. -/
+/-- A `HomClass` consists of `L`-homomorphisms. -/
 @[simps]
-def _root_.Function.MSemptyHom (f : M →ₛ N) : M →[Language.empty] N where toFun := f
-end Empty
+def HomClass.toHom [HomClass L F M N] : F → M →[L] N := fun φ => ⟨φ, map_fun φ, map_rel φ⟩
 
-section InducedStructure
-namespace Equiv
+/-- A sortwise injective `StrongHomClass` consists of `L`-embeddings. Note that we need
+  to require sortwise injectivity, since the definition of `StrongHomClass` does not assume
+  that we reflect equality. This is in line with the one-sorted definition this is modeled after. -/
+@[simps]
+def StrongHomClass.toEmbedding' [StrongHomClass L F M N]
+    (h : ∀ (φ : F) s, Function.Injective (φ s)) :
+  F → M ↪[L] N := fun φ => ⟨fun s => ⟨φ s, h φ s⟩, map_fun φ, map_rel φ⟩
 
-open MSFirstOrder.Language.Structure
+end ToHom
 
-variable {S : Type z} {L : Language S} {M : Fam.{w} S} {N : Fam.{w'} S}
-variable [L.Structure M]
+section Maps
 
-@[reducible]
-def inducedStructure (e : Fam.MSEquiv M N) : L.Structure N :=
-{ funMap := fun {σ} {t} (f : L.Functions σ t) (x : σ.Interpret N ) =>
-    e t (funMap f (e.symm <$>ₛ x)),
-  RelMap := fun {σ} (r : L.Relations σ) (x : σ.Interpret N) =>
-    RelMap r (e.symm <$>ₛ x) }
+variable {L} {M : S → Type w} {N : S → Type w'} [L.Structure M] [L.Structure N]
 
-/-- A bijection as a first-order isomorphism with the induced structure on the codomain. -/
-def inducedStructureEquiv (e : M ≃ₛ N) : @Language.Equiv S L M N _ (inducedStructure e) := by
-  letI S : L.Structure N := inducedStructure e
-  exact
-  { e with
-    map_fun' := @fun σ t f x => by
-      change e.toFun t (funMap f x) = e t (funMap f (e.invFun <$>ₛ (e.toFun <$>ₛ x)))
-      have h : (e.invFun <$>ₛ (e.toFun <$>ₛ x)) = x := by
-        ext s a
-        simp only [Interpret.get_map]
-        exact e.left_inv' s (Interpret.get x s a)
-      rw [h]
-      rfl
-    map_rel' := @fun σ  r x => by
-      change RelMap r (e.invFun <$>ₛ (e.toFun <$>ₛ x)) ↔ RelMap r x
-      have h : (e.invFun <$>ₛ (e.toFun <$>ₛ x)) = x := by
-        ext s a
-        simp only [Interpret.get_map]
-        exact e.left_inv' s (Interpret.get x s a)
-      rw [h] }
+instance (priority := 100) StrongHomClass.homClass {F : Type*}
+    [DFunLike F S fun s => M s → N s] [StrongHomClass L F M N] : HomClass L F M N where
+  map_fun := StrongHomClass.map_fun
+  map_rel φ _ r x := (StrongHomClass.map_rel φ r x).2
 
-@[simp]
-theorem toEquiv_inducedStructureEquiv (e : M ≃ₛ N) :
-    @Language.Equiv.toMSEquiv S L M N _ (inducedStructure e) (inducedStructureEquiv e) = e :=
-  rfl
+instance : HomClass L (M →[L] N) M N where
+  map_fun φ := φ.map_fun'
+  map_rel φ := φ.map_rel'
 
-@[simp]
-theorem toFun_inducedStructureEquiv (e : M ≃ₛ N) :
-    DFunLike.coe (@inducedStructureEquiv S L M N _ e) = e :=
-  rfl
+instance : StrongHomClass L (M ↪[L] N) M N where
+  map_fun φ := φ.map_fun'
+  map_rel φ := φ.map_rel'
 
-@[simp]
-theorem toFun_inducedStructureEquiv_Symm (e : M ≃ₛ N) :
-    (by
-    letI : L.Structure N := inducedStructure e
-    exact (@inducedStructureEquiv S L M N _ e).symm.toFun) = (e.symm : N →ₛ M) :=
-  rfl
+instance : StrongHomClass L (M ≃[L] N) M N where
+  map_fun φ := φ.map_fun'
+  map_rel φ := φ.map_rel'
 
-end Equiv
+theorem Embedding.injective (φ : M ↪[L] N) (s : S) : Function.Injective (φ s) :=
+  (φ.toEmbedding s).injective
 
-end InducedStructure
+theorem Equiv.injective (φ : M ≃[L] N) (s : S) : Function.Injective (φ s) :=
+  (φ.toEquiv s).injective
+
+theorem Equiv.surjective (φ : M ≃[L] N) (s : S) : Function.Surjective (φ s) :=
+  (φ.toEquiv s).surjective
+
+end Maps
 
 end Language
 
-end MSFirstOrder
+end ManySorted

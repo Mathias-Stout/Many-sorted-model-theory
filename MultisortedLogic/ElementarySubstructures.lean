@@ -1,185 +1,188 @@
 /-
-Based on the corresponding Mathlib file by Aaron Anderson
+Copyright (c) 2026 Mathias Stout. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Aaron Crighton, John Nicholson, Mathias Stout
 -/
-import MultisortedLogic.ElementaryMapsMS
+module
+
+public import MultisortedLogic.ElementaryMaps
+public import MultisortedLogic.Substructures
 
 /-!
-# Elementary Substructures
+# Elementary substructures
 
-## Main Definitions
+A substructure is elementary when every formula holds of a tuple from it in the substructure iff
+it holds of the tuple in the whole structure.
 
-- A `MSFirstOrder.Language.ElementarySubstructure` is a substructure where the realization of each
-  formula agrees with the realization in the larger model.
+## Main definitions
 
-## Main Results
+* `Substructure.IsElementary`.
+* `ElementarySubstructure L M`, with the inclusion `ElementarySubstructure.subtype` as an
+  elementary embedding.
 
-- The Tarski-Vaught Test for substructures:
-  `MSFirstOrder.Language.Substructure.isElementary_of_exists` gives a simple criterion for a
-  substructure to be elementary.
+## Main results
+
+* `Substructure.isElementary_of_exists`: the Tarski–Vaught test.
+* `ElementarySubstructure.theory_model_iff`: an elementary substructure is a model of the same
+  theories as `M`.
+
+## Implementation notes
+
+Mathlib's part on sets meeting the definable sets is not included.
+
+## References
+
+This file was originally based on `Mathlib/ModelTheory/ElementarySubstructures.lean`, by Aaron
+Anderson.
 -/
 
-universe u v z w
+@[expose] public section
 
+universe u v w z
 
-namespace MSFirstOrder
+namespace ManySorted.Language
 
-namespace Language
+open Arity Structure
 
-open Structure
-variable {Sorts : Type z}
-variable {L : Language.{u, v, z} Sorts} {M : Fam.{w} Sorts} [L.Structure M]
+variable {S : Type z} {L : Language.{u, v} S} {M : S → Type w} [L.Structure M]
 
-/-- A substructure is elementary when every formula applied to a tuple in the substructure
-  agrees with its value in the overall structure. -/
-def Substructure.IsElementary (S : L.Substructure M) : Prop :=
-  ∀ ⦃σ : Signature Sorts⦄ (φ : L.BoundedFormula Fam.EmptyFam σ) (x : S[^]σ),
-      φ.Realize default (x : M[^]σ) ↔ φ.Realize default x
+/-- A substructure is elementary when every formula holds of a tuple from it in the substructure
+iff it holds of the tuple in `M`. -/
+def Substructure.IsElementary (A : L.Substructure M) : Prop :=
+  ∀ ⦃σ : Arity S⦄ (φ : L.Formula σ) (x : (fun s => ↥(A s)) [^] σ),
+    φ.Realize (x.map fun _ a => a.1) ↔ φ.Realize x
 
-variable (L M)
-
-/-- An elementary substructure is one in which every formula applied to a tuple in the substructure
-  agrees with its value in the overall structure. -/
+variable (L M) in
+/-- An elementary substructure of `M`. -/
 structure ElementarySubstructure where
-  /-- The underlying substructure -/
+  /-- The underlying substructure. -/
   toSubstructure : L.Substructure M
   isElementary' : toSubstructure.IsElementary
 
-variable {L M}
-
 namespace ElementarySubstructure
 
-attribute [coe] toSubstructure
+instance : DFunLike (L.ElementarySubstructure M) S fun s => Set (M s) where
+  coe A := A.toSubstructure
+  coe_injective A B h := by
+    obtain ⟨A, _⟩ := A
+    obtain ⟨B, _⟩ := B
+    obtain rfl : A = B := DFunLike.coe_injective h
+    rfl
 
-instance instCoe : Coe (L.ElementarySubstructure M) (L.Substructure M) :=
-  ⟨ElementarySubstructure.toSubstructure⟩
+instance : CoeOut (L.ElementarySubstructure M) (L.Substructure M) :=
+  ⟨toSubstructure⟩
 
-instance instDepSetLike : DepSetLike (L.ElementarySubstructure M) M where
-  toDepSet S := (S.toSubstructure : DepSet M)
-  toDepSet_injective := by
-    intro S T h
-    have hsub : S.toSubstructure = T.toSubstructure := by
-      exact (DepSetLike.toDepSet_injective (F := L.Substructure M) (α := M)) h
-    cases S
-    cases T
-    cases hsub
-    simp
-
-/-- The underlying family of a bundled elementary substructure. -/
-abbrev Subtype (S : L.ElementarySubstructure M) : Fam Sorts :=
-  (S.toSubstructure).Subtype
-
-instance inducedStructure (S : L.ElementarySubstructure M) : L.Structure S :=
-  Substructure.inducedStructure (S := (S : L.Substructure M))
+variable {A B : L.ElementarySubstructure M} {s : S}
 
 @[simp]
-theorem isElementary (S : L.ElementarySubstructure M) : (S : L.Substructure M).IsElementary :=
-  S.isElementary'
-
-/-- The natural embedding of an `L.Substructure` of `M` into `M`. -/
-def subtype (S : L.ElementarySubstructure M) : S ↪ₑ[L] M where
-  toFun := ⟨fun s (x : S.Subtype s) => x.1⟩
-  map_boundedFormula' := by
-    intro σ φ x
-    exact (S.isElementary (σ := σ) φ x)
-
-@[simp]
-theorem subtype_apply {S : L.ElementarySubstructure M} {s : Sorts} (x : S.Subtype s) :
-    subtype S s x = x.1 :=
+theorem coe_toSubstructure (A : L.ElementarySubstructure M) : ⇑(A : L.Substructure M) = ⇑A :=
   rfl
 
-theorem subtype_injective (S : L.ElementarySubstructure M) (s : Sorts) :
-    Function.Injective (subtype S s) := by
-  intro x y h
-  exact Subtype.ext h
+@[simp]
+theorem mem_toSubstructure {x : M s} : x ∈ (A : L.Substructure M) s ↔ x ∈ A s :=
+  Iff.rfl
 
-/-- The substructure `M` of the structure `M` is elementary. -/
-instance instTop : Top (L.ElementarySubstructure M) :=
-  ⟨⟨⊤, by
-      intro σ φ x
-      letI : L.Structure ((⊤ : L.Substructure M).Subtype) :=
-        Substructure.inducedStructure (S := (⊤ : L.Substructure M))
-      let mapx : M[^]σ := ((⊤ : DepSet M).subtypeVal <$>ₛ x)
-      let vTop : Fam.EmptyFam →ₛ M :=
-        (Fam.FamMapClass.toFamMap
-          (⇑((((⊤ : DepSet M).subtypeVal) ∘ₛ
-            (default : Fam.EmptyFam →ₛ (⊤ : L.Substructure M).Subtype)))))
-      have htop :
-          φ.Realize (default : Fam.EmptyFam →ₛ (⊤ : L.Substructure M).Subtype) x ↔
-            φ.Realize vTop mapx :=
-          (Substructure.realize_boundedFormula_top (L := L) (M := M) (φ := φ)
-            (v := (default : Fam.EmptyFam →ₛ (⊤ : L.Substructure M).Subtype)) (xs := x))
-      have hv : vTop = (default : Fam.EmptyFam →ₛ M) := by
-        ext s a
-        cases a
-      have hleft :
-          φ.Realize (default : Fam.EmptyFam →ₛ M) mapx ↔ φ.Realize vTop mapx := by
-        simp [hv]
-      simp only [mapx] at hleft
-      exact hleft.trans htop.symm
-      ⟩⟩
+/-- Two elementary substructures are equal if they have the same elements. -/
+@[ext]
+theorem ext (h : ∀ s (x : M s), x ∈ A s ↔ x ∈ B s) : A = B :=
+  DFunLike.coe_injective (funext fun s => Set.ext (h s))
 
+instance : PartialOrder (L.ElementarySubstructure M) :=
+  PartialOrder.lift _ DFunLike.coe_injective
 
-instance instInhabited : Inhabited (L.ElementarySubstructure M) :=
+/-- The structure induced on an elementary substructure. -/
+instance inducedStructure (A : L.ElementarySubstructure M) : L.Structure fun s => ↥(A s) :=
+  Substructure.inducedStructure (A := A.toSubstructure)
+
+@[simp]
+theorem isElementary (A : L.ElementarySubstructure M) : (A : L.Substructure M).IsElementary :=
+  A.isElementary'
+
+/-- The inclusion of an elementary substructure, as an elementary embedding. -/
+def subtype (A : L.ElementarySubstructure M) : (fun s => ↥(A s)) ↪ₑ[L] M where
+  toFun _ a := a.1
+  map_formula' φ xs := A.isElementary' φ xs
+
+@[simp]
+theorem subtype_apply (x : A s) : A.subtype s x = x :=
+  rfl
+
+@[simp]
+theorem coe_subtype (A : L.ElementarySubstructure M) : ⇑A.subtype = fun _ => Subtype.val :=
+  rfl
+
+theorem subtype_injective (A : L.ElementarySubstructure M) (s : S) :
+    Function.Injective (A.subtype s) :=
+  Subtype.coe_injective
+
+/-- The top substructure is elementary. -/
+instance : Top (L.ElementarySubstructure M) :=
+  ⟨⟨⊤, fun _ φ x => (Substructure.realize_formula_top φ x).symm⟩⟩
+
+instance : Inhabited (L.ElementarySubstructure M) :=
   ⟨⊤⟩
 
-@[simp]
-theorem mem_top {s : Sorts} (x : M s) :
-    x ∈ (((⊤ : L.ElementarySubstructure M) : L.Substructure M) s) :=
-    (Substructure.mem_top (L := L) (M := M) (s := s) x)
+theorem mem_top (x : M s) : x ∈ (⊤ : L.ElementarySubstructure M) s :=
+  Set.mem_univ x
 
 @[simp]
-theorem top_apply (s : Sorts) :
-    ((((⊤ : L.ElementarySubstructure M) : L.Substructure M) s)) = Set.univ := rfl
+theorem coe_top : ⇑(⊤ : L.ElementarySubstructure M) = fun _ => Set.univ :=
+  rfl
+
+theorem realize_sentence (A : L.ElementarySubstructure M) (φ : L.Sentence) :
+    (fun s => ↥(A s)) ⊨ φ ↔ M ⊨ φ :=
+  A.subtype.map_sentence φ
 
 @[simp]
-theorem realize_sentence (S : L.ElementarySubstructure M) (φ : L.Sentence) :
-    S ⊨ φ ↔ M ⊨ φ :=
-  S.subtype.map_sentence φ
+theorem theory_model_iff (A : L.ElementarySubstructure M) (T : L.Theory) :
+    (fun s => ↥(A s)) ⊨ T ↔ M ⊨ T :=
+  A.subtype.theory_model_iff T
 
-@[simp]
-theorem theory_model_iff (S : L.ElementarySubstructure M) (T : L.Theory) :
-    S ⊨ T ↔ M ⊨ T := by
-  simp only [Theory.model_iff, realize_sentence]
+instance theory_model {T : L.Theory} [h : M ⊨ T] {A : L.ElementarySubstructure M} :
+    (fun s => ↥(A s)) ⊨ T :=
+  (theory_model_iff A T).2 h
 
-instance theory_model {T : L.Theory} [h : M ⊨ T] {S : L.ElementarySubstructure M} :
-    S ⊨ T :=
-  (theory_model_iff S T).2 h
+/-- The sorts of an elementary substructure of a structure with nonempty sorts are nonempty. -/
+instance nonempty [∀ s, Nonempty (M s)] (A : L.ElementarySubstructure M) (s : S) :
+    Nonempty (A s) := by
+  obtain ⟨y, -⟩ := Formula.realize_ex.1 ((A.subtype.map_formula
+    ((⊤ : L.Formula (⦃⦄ ⨯ ⦃s⦄)).ex ⦃s⦄) PUnit.unit).1
+      (Formula.realize_ex.2 ⟨Classical.arbitrary (M s), Formula.realize_top.2 trivial⟩))
+  exact ⟨y⟩
 
-theorem elementarilyEquivalent (S : L.ElementarySubstructure M) : S ≅[L] M :=
-  S.subtype.elementarilyEquivalent
+theorem elementarilyEquivalent (A : L.ElementarySubstructure M) :
+    L.ElementarilyEquivalent (fun s => ↥(A s)) M :=
+  A.subtype.elementarilyEquivalent
 
 end ElementarySubstructure
 
 namespace Substructure
 
-/-- The Tarski-Vaught test for elementarity of a substructure. -/
-theorem isElementary_of_exists (S : L.Substructure M)
-    (htv :
-      ∀ (s : Sorts) (σ : Signature Sorts)
-        (φ : L.BoundedFormula Fam.EmptyFam (σ.prod (.of s)))
-        (xs : S [^] σ) (a : M s),
-          φ.Realize default ⟨S.subtype <$>ₛ xs, a⟩ →
-            ∃ b : S s, φ.Realize default ⟨S.subtype <$>ₛ xs, S.subtype s b⟩) :
-    S.IsElementary := by
-  intro σ φ xs
-  simp only [Signature.Interpret.mapClass_eq_map]
-  exact (S.subtype.isElementary_of_exists htv (σ := σ) (φ := φ) (xs := xs))
+/-- **The Tarski–Vaught test** for substructures: a substructure is elementary if every formula with
+one variable over it that has a witness in `M` has one in the substructure. -/
+theorem isElementary_of_exists (A : L.Substructure M)
+    (htv : ∀ {σ : Arity S} {s : S} (φ : L.Formula (σ ⨯ ⦃s⦄)) (x : (fun s => ↥(A s)) [^] σ)
+      (b : M s), φ.Realize (((x.map fun _ a => a.1), b) : M [^] (σ ⨯ ⦃s⦄)) →
+        ∃ a : A s, φ.Realize (((x.map fun _ a => a.1), a.1) : M [^] (σ ⨯ ⦃s⦄))) :
+    A.IsElementary :=
+  fun _ φ x => A.subtype.isElementary_of_exists htv φ x
 
-/-- Bundles a substructure satisfying the Tarski-Vaught test as an elementary substructure. -/
-@[simps]
-def toElementarySubstructure (S : L.Substructure M)
-    (htv :
-      ∀ (s : Sorts) (σ : Signature Sorts)
-        (φ : L.BoundedFormula Fam.EmptyFam (σ.prod (.of s)))
-        (xs : S [^] σ) (a : M s),
-          φ.Realize default ⟨S.subtype <$>ₛ xs, a⟩ →
-            ∃ b : S s, φ.Realize default ⟨S.subtype <$>ₛ xs, S.subtype s b⟩) :
+/-- A substructure that passes the Tarski–Vaught test, as an elementary substructure. -/
+def toElementarySubstructure (A : L.Substructure M)
+    (htv : ∀ {σ : Arity S} {s : S} (φ : L.Formula (σ ⨯ ⦃s⦄)) (x : (fun s => ↥(A s)) [^] σ)
+      (b : M s), φ.Realize (((x.map fun _ a => a.1), b) : M [^] (σ ⨯ ⦃s⦄)) →
+        ∃ a : A s, φ.Realize (((x.map fun _ a => a.1), a.1) : M [^] (σ ⨯ ⦃s⦄))) :
     L.ElementarySubstructure M :=
-  ⟨S, S.isElementary_of_exists htv⟩
+  ⟨A, A.isElementary_of_exists htv⟩
+
+@[simp]
+theorem coe_toElementarySubstructure (A : L.Substructure M)
+    (htv : ∀ {σ : Arity S} {s : S} (φ : L.Formula (σ ⨯ ⦃s⦄)) (x : (fun s => ↥(A s)) [^] σ)
+      (b : M s), φ.Realize (((x.map fun _ a => a.1), b) : M [^] (σ ⨯ ⦃s⦄)) →
+        ∃ a : A s, φ.Realize (((x.map fun _ a => a.1), a.1) : M [^] (σ ⨯ ⦃s⦄))) :
+    ⇑(A.toElementarySubstructure htv) = ⇑A :=
+  rfl
 
 end Substructure
 
-end Language
-
-end MSFirstOrder
+end ManySorted.Language

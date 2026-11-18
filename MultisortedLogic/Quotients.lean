@@ -1,117 +1,156 @@
 /-
-Based on the corresponding Mathlib file by Aaron Anderson.
+Copyright (c) 2026 Mathias Stout. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Aaron Crighton, John Nicholson, Mathias Stout
 -/
+module
 
-import Mathlib.Data.Fintype.Quotient
-import MultisortedLogic.Semantics
+public import MultisortedLogic.Semantics
 
 /-!
-# Quotients of First-Order Structures
+# Quotients of structures
 
-This file defines prestructures and quotients of first-order structures.
+The quotient of an `L`-structure `M` by a family of setoids `r s` on its carriers that is
+compatible with the function and relation symbols. Its carriers are `fun s => Quotient (r s)`.
 
-## Main Definitions
+## Main definitions
 
-- If `s` is a setoid (equivalence relation) on `M`, a `MSFirstOrder.Language.Prestructure s`
-  is the data for a first-order structure on `M` that will still be a structure when modded out
-  by `s`.
-- The structure `MSFirstOrder.Language.quotientStructure s` is the resulting structure on
-  `Quotient S`.
+* `Arity.Interpret.setoid`: the entrywise relation on tuples induced by a family of setoids.
+* `Arity.Interpret.mkQuot`: the tuple of classes of the entries of a tuple.
+* `Language.Congruence`: compatibility of a family of setoids with an `L`-structure.
+* `Language.quotientStructure`: the `L`-structure on the quotient by a congruence.
+* `Language.Congruence.mkHom`: the quotient map, as a homomorphism.
+
+## Implementation notes
+
+* Mathlib's one-sorted `Quotients.lean` bundles the setoid with a second structure on `M` into a
+  class `Prestructure`. Here compatibility is a `Prop`-valued mixin `Congruence` on top of
+  `[L.Structure M]`.
+* A tuple of classes becomes the class of a tuple by recursion on the arity
+  (`Interpret.quotChoice`), so the quotient structure needs no choice.
+
+## References
+
+This file was originally based on `Mathlib/ModelTheory/Quotients.lean`, by Aaron Anderson.
 -/
 
+@[expose] public section
 
-namespace MSFirstOrder
+universe u v w z
+
+namespace ManySorted
+
+open Arity
+
+variable {S : Type z} {M : S → Type w}
+
+namespace Arity.Interpret
+
+/-- The entrywise relation on tuples induced by a family of setoids. -/
+def setoid (rs : ∀ s, Setoid (M s)) (σ : Arity S) : Setoid (M [^] σ) where
+  r x y := ∀ s i, (rs s).r (x.get s i) (y.get s i)
+  iseqv :=
+    ⟨fun _ s _ => (rs s).iseqv.refl _, fun h s i => (rs s).iseqv.symm (h s i),
+      fun h h' s i => (rs s).iseqv.trans (h s i) (h' s i)⟩
+
+/-- The tuple of classes of the entries of a tuple. -/
+abbrev mkQuot (r : ∀ s, Setoid (M s)) {σ : Arity S} (x : M [^] σ) :
+    (fun s => Quotient (r s)) [^] σ :=
+  x.map fun s => Quotient.mk (r s)
+
+/-- The class of a tuple, computed from the classes of its entries by recursion on the arity. -/
+def quotChoice (r : ∀ s, Setoid (M s)) :
+    ∀ {σ : Arity S}, (fun s => Quotient (r s)) [^] σ → Quotient (setoid r σ)
+  | nil, _ => Quotient.mk _ PUnit.unit
+  | of s, q => Quotient.map (sa := r s) (sb := setoid r ⦃s⦄) id
+      (by intro a b h t i; cases i; exact h) q
+  | prod σ τ, q =>
+      Quotient.map₂ (sa := setoid r σ) (sb := setoid r τ) (sc := setoid r (σ ⨯ τ)) Prod.mk
+        (by
+          intro a₁ a₂ ha b₁ b₂ hb t i
+          cases i with
+          | left i => exact ha t i
+          | right i => exact hb t i)
+        (quotChoice r q.1) (quotChoice r q.2)
+
+@[simp]
+theorem quotChoice_mkQuot (r : ∀ s, Setoid (M s)) :
+    ∀ {σ : Arity S} (x : M [^] σ), quotChoice r (mkQuot r x) = Quotient.mk (setoid r σ) x
+  | nil, _ => rfl
+  | of _, _ => rfl
+  | prod _ _, x => by
+      change Quotient.map₂ _ _ (quotChoice r (mkQuot r x.1)) (quotChoice r (mkQuot r x.2)) = _
+      rw [quotChoice_mkQuot r x.1, quotChoice_mkQuot r x.2]
+      rfl
+
+theorem mkQuot_eq_iff (r : ∀ s, Setoid (M s)) {σ : Arity S} {x y : M [^] σ} :
+    mkQuot r x = mkQuot r y ↔ (setoid r σ).r x y := by
+  constructor
+  · intro h s i
+    have := congrArg (fun z => get z s i) h
+    simp only [get_map] at this
+    exact Quotient.exact this
+  · intro h
+    exact ext fun s i => by
+      simp only [get_map]
+      exact Quotient.sound (h s i)
+
+end Arity.Interpret
 
 namespace Language
 
-variable {Sorts : Type*} (L : Language Sorts) {M : Fam Sorts} {σ : Signature Sorts}
-
 open Structure
-open Signature Interpret
-open Fam
 
-/-- A prestructure is a first-order structure with a `Setoid` equivalence relation on it,
-  such that quotienting by that equivalence relation is still a structure. -/
-class Prestructure (S : MSSetoid M) where
-  /-- The underlying first-order structure -/
-  toStructure : L.Structure M
-  fun_equiv {t : Sorts} :
-      ∀ {σ : Signature Sorts} {f : L.Functions σ t} (x y : M[^]σ),
-        x ≈ y →
-          @funMap Sorts L M toStructure σ t f x ≈
-            @funMap Sorts L M toStructure σ t f y
-  rel_equiv :
-      ∀ {σ : Signature Sorts} {r : L.Relations σ} (x y : M[^]σ),
-        x ≈ y →
-          (@RelMap Sorts L M toStructure σ r x ↔
-            @RelMap Sorts L M toStructure σ r y)
+variable {L : Language.{u, v} S}
 
-variable {L} {S : MSSetoid M}
-variable [ps : L.Prestructure S]
+variable (L) in
+/-- A family of setoids on the carriers of an `L`-structure that is compatible with its function
+and relation symbols. -/
+class Congruence [L.Structure M] (r : ∀ s, Setoid (M s)) : Prop where
+  funMap_rel : ∀ {σ t} (f : L.Functions σ t) {x y : M [^] σ},
+    (Interpret.setoid r σ).r x y → (r t).r (funMap f x) (funMap f y)
+  relMap_iff : ∀ {σ} (R : L.Relations σ) {x y : M [^] σ},
+    (Interpret.setoid r σ).r x y → (RelMap R x ↔ RelMap R y)
 
-noncomputable
-instance quotientStructure : L.Structure (MSQuotient S) where
-  funMap {σ : Signature Sorts} t f x := by
-    letI : MSSetoid M := S
-    exact
-      Quotient.map
-        (fun y : M[^]σ => @funMap Sorts L M ps.toStructure σ t f y)
-        (fun x y hxy => ps.fun_equiv (f := f) x y hxy)
-        (Interpret.choice (R := S) x)
+variable [L.Structure M] {r : ∀ s, Setoid (M s)} [L.Congruence r]
 
-  RelMap {σ : Signature Sorts} r x := by
-    letI : MSSetoid M := S
-    exact
-      Quotient.lift
-        (fun y : M[^]σ => @RelMap Sorts L M ps.toStructure σ r y)
-        (fun x y hxy => propext <| ps.rel_equiv (r := r) x y hxy)
-        (Interpret.choice (R := S) x)
+/-- The quotient of a structure by a congruence. -/
+instance quotientStructure : L.Structure (fun s => Quotient (r s)) where
+  funMap {_ t} f q :=
+    Quotient.lift (fun x => Quotient.mk (r t) (funMap f x))
+      (fun _ _ h => Quotient.sound (Congruence.funMap_rel f h)) (Interpret.quotChoice r q)
+  RelMap R q :=
+    Quotient.lift (RelMap R) (fun _ _ h => propext (Congruence.relMap_iff R h))
+      (Interpret.quotChoice r q)
 
-theorem funMap_eq {t} (f : L.Functions σ t) (x : MSQuotient S [^] σ) :
-    funMap f x = Quotient.map
-        (fun y : M[^]σ => @funMap Sorts L M ps.toStructure σ t f y)
-        (fun x y hxy => ps.fun_equiv (f := f) x y hxy)
-        (Interpret.choice (R := S) x) := by rfl
-
-theorem relMap_eq (r : L.Relations σ) (x : MSQuotient S [^] σ) :
-  RelMap r x ↔ Quotient.lift
-        (fun y : M[^]σ => @RelMap Sorts L M ps.toStructure σ r y)
-        (fun x y hxy => propext (ps.rel_equiv (r := r) x y hxy))
-        (Interpret.choice (R := S) x) := by rfl
-
-variable (S)
-
-theorem funMap_quotient_mk' {σ t} (f : L.Functions σ t) (x : M [^] σ) :
-    (funMap f (Interpret.toQuot (R := S) x)) =
-      ⟦@funMap Sorts L M ps.toStructure σ t f x⟧ := by
-  letI : MSSetoid M := S
-  rw [funMap_eq]
-  simp [Interpret.choice_toQuot]
+@[simp]
+theorem funMap_mkQuot {σ : Arity S} {t : S} (f : L.Functions σ t) (x : M [^] σ) :
+    funMap f (Interpret.mkQuot r x) = Quotient.mk (r t) (funMap f x) := by
+  simp only [funMap, Interpret.quotChoice_mkQuot]
   rfl
 
-theorem relMap_quotient_mk' {σ : Signature Sorts} (r : L.Relations σ) (x : M [^] σ) :
-    (RelMap r (Interpret.toQuot (R := S) x)) ↔ @RelMap Sorts L M ps.toStructure σ r x := by
-  simp only [RelMap, Interpret.choice_toQuot, Quotient.lift_mk]
+@[simp]
+theorem relMap_mkQuot {σ : Arity S} (R : L.Relations σ) (x : M [^] σ) :
+    RelMap R (Interpret.mkQuot r x) ↔ RelMap R x := by
+  simp only [RelMap, Interpret.quotChoice_mkQuot]
+  rfl
 
-theorem Term.realize_quotient_mk' {β : Fam Sorts} (t : L.Term β σ) (x : β →ₛ M) :
-    (t.realize (MSQuotient.mk S ∘ₛ x)) =
-      Interpret.toQuot (R := S) (@Term.realize _ _ M ps.toStructure _ _ x t) := by
-  letI : MSSetoid M := S
-  induction t with
-  | var => rfl
-  | func _ _ ih =>
-      simp only [realize_func, ih, funMap_quotient_mk']
-      rfl
-  | prod _ _ ih₁ ih₂ =>
-      simp only [realize_prod, ih₁, ih₂, Interpret.toQuot]
-      simpa only using
-        (Interpret.map_prod (f := MSQuotient.mk S) (x₁ :=
-            @Term.realize Sorts L M ps.toStructure β _ x _) (x₂ :=
-            @Term.realize Sorts L M ps.toStructure β _ x _)).symm
-  | nil =>
-      simp only [reduce_nil, PUnit.default_eq_unit, Interpret.toQuot]
+variable (L r) in
+/-- The quotient map, as a homomorphism of `L`-structures. -/
+def Congruence.mkHom : M →[L] fun s => Quotient (r s) where
+  toFun s := Quotient.mk (r s)
+  map_fun' f x := (funMap_mkQuot f x).symm
+  map_rel' R x h := (relMap_mkQuot R x).2 h
+
+@[simp]
+theorem Congruence.mkHom_apply (s : S) (a : M s) :
+    Congruence.mkHom L r s a = Quotient.mk (r s) a := rfl
+
+@[simp]
+theorem Term.realize_mkQuot {Γ σ : Arity S} (t : L.Term Γ σ) (xs : M [^] Γ) :
+    t.realize (Interpret.mkQuot r xs) = Interpret.mkQuot r (t.realize xs) :=
+  HomClass.realize_term (Congruence.mkHom L r) xs t
 
 end Language
 
-end MSFirstOrder
+end ManySorted
